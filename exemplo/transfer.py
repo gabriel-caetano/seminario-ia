@@ -1,10 +1,7 @@
 import tensorflow as tf
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-import io
 
 # Definindo a semente para reprodutibilidade
 tf.random.set_seed(42)
@@ -14,7 +11,6 @@ scaler = StandardScaler()
 # --- 1. Preparação dos Dados ---
 source_df = pd.read_csv('dataset_source.csv')
 
-# O modelo será treinado do zero nos dados "fonte".
 X_source = source_df.drop('death', axis=1)
 y_source = source_df['death']
 X_train_source, X_val_source, y_train_source, y_val_source = train_test_split(
@@ -39,9 +35,9 @@ base_model_source = keras.models.Sequential([
 
 # --- 3. Compilação do Modelo ---
 base_model_source.compile(
-    loss='binary_crossentropy',      # Ideal para classificação binária
-    optimizer=keras.optimizers.Adam(learning_rate=0.01), # Otimizador popular e eficiente
-    metrics=['accuracy']             # Métrica para acompanhar o desempenho
+    loss='binary_crossentropy',      # função para classificação binária
+    optimizer=keras.optimizers.Adam(learning_rate=0.01), # valor padrão .001
+    metrics=['accuracy']
 )
 
 print("\n--- Arquitetura do Modelo Base ---")
@@ -49,13 +45,13 @@ base_model_source.summary()
 print("-" * 25)
 
 # --- 4. Treinamento do Modelo Base ---
-print("\n--- Treinando o Modelo Base (nos dados fonte) ---")
+print("\n--- Treinando o Modelo Base com os dados fonte (pacientes idosos) ---")
 history = base_model_source.fit(
     X_train_scaled_source,
     y_train_source,
-    epochs=50, # Número de vezes que o modelo verá todo o dataset
+    epochs=100,
     validation_data=(X_val_scaled_source, y_val_source),
-    verbose=0 # Usamos verbose=0 para não poluir a saída, mas você pode usar 1 para ver o progresso
+    verbose=0 
 )
 print("Treinamento concluído!")
 
@@ -65,14 +61,14 @@ print(f"\nAcurácia do modelo base no conjunto source: {accuracy:.2%}")
 print(f"\nPerda do modelo base no conjunto source: {loss:.2%}")
 
 # --- 6. Visualização do Treinamento ---
-pd.DataFrame(history.history).plot(figsize=(8, 5))
-plt.grid(True)
-plt.gca().set_ylim(0, 1) # set the y-axis range to [0, 1]
-plt.title("Curvas de Aprendizado do Modelo Base source")
-plt.xlabel("Epochs")
-plt.show()
+# pd.DataFrame(history.history).plot(figsize=(8, 5))
+# plt.grid(True)
+# plt.gca().set_ylim(0, 1) # set the y-axis range to [0, 1]
+# plt.title("Curvas de Aprendizado do Modelo Base source")
+# plt.xlabel("Epochs")
+# plt.show()
 
-print("\n--- Iniciando Transfer Learning para o Domínio Alvo (Pacientes Idosos) ---")
+print("\n--- Iniciando Transfer Learning para o Domínio Alvo (pacientes jovens) ---")
 
 # --- 6. Preparação dos Dados Alvo ---
 target_df = pd.read_csv('dataset_target.csv')
@@ -88,28 +84,26 @@ X_train_target, X_val_target, y_train_target, y_val_target = train_test_split(
 X_train_scaled_target = scaler.transform(X_train_target)
 X_val_scaled_target = scaler.transform(X_val_target)
 
-# --- 7. Avaliação de Baseline (Antes do Retreino) ---
-# Vamos ver como o modelo treinado em 'source' se sai em 'target'
+# --- 7. Avaliação do modelo com os dados alvo (Antes do Retreino) ---
 loss_before, accuracy_before = base_model_source.evaluate(X_val_scaled_target, y_val_target, verbose=0)
 print(f"Acurácia no domínio ALVO *antes* do retreino: {accuracy_before:.2%}")
+print(f"\nPerda no domínio ALVO *antes* do retreino: {loss_before:.2%}")
 
 # --- 8. Retreinamento do Modelo (Transfer Learning) ---
 print("\n--- Retreinando o modelo com os dados do domínio alvo... ---")
 base_model_source.layers[0].trainable = False
-# base_model_source.layers[1].trainable = False
-# base_model_source.layers[2].trainable = False
-# base_model_source.layers[3].trainable = False
+base_model_source.layers[1].trainable = False
 
 base_model_source.compile(
     loss='binary_crossentropy',
-    optimizer=keras.optimizers.Adam(learning_rate=0.01), # Taxa de aprendizado 10x menor
+    optimizer=keras.optimizers.Adam(learning_rate=0.01), # Redefinindo taxa de aprendizado
     metrics=['accuracy']
 )
 
 history_target = base_model_source.fit(
     X_train_scaled_target,
     y_train_target,
-    epochs=10, # Continuamos o treino por mais 50 épocas
+    epochs=10,
     validation_data=(X_val_scaled_target, y_val_target),
     verbose=0
 )
@@ -122,13 +116,16 @@ print(f"\nPerda no domínio ALVO *depois* do retreino: {loss_after:.2%}")
 
 # --- 10. Comparação e Visualização ---
 print("\n--- Resumo do Resultado ---")
-print(f"Performance inicial no alvo: {accuracy_before:.2%}")
-print(f"Performance final no alvo:   {accuracy_after:.2%}")
-print(f"Melhora com Transfer Learning: {accuracy_after - accuracy_before:+.2%}")
+print(f"Acurácia inicial no alvo: {accuracy_before:.2%}")
+print(f"Perda inicial no alvo: {loss_before:.2%}")
+print(f"Acurácia final no alvo:   {accuracy_after:.2%}")
+print(f"Perda final no alvo:   {loss_after:.2%}")
+print(f"Melhora de acurácia com Transfer Learning: {accuracy_after - accuracy_before:+.2%}")
+print(f"Melhora de perda com Transfer Learning: {loss_before - loss_after:+.2%}")
 
-pd.DataFrame(history_target.history).plot(figsize=(8, 5))
-plt.grid(True)
-plt.gca().set_ylim(0, 1)
-plt.title("Curvas de Aprendizado do RETREINO (Dados Target)")
-plt.xlabel("Epochs")
-plt.show()
+# pd.DataFrame(history_target.history).plot(figsize=(8, 5))
+# plt.grid(True)
+# plt.gca().set_ylim(0, 1)
+# plt.title("Curvas de Aprendizado do RETREINO (Dados Target)")
+# plt.xlabel("Epochs")
+# plt.show()

@@ -15,14 +15,14 @@ print(f"Successfully loaded '{input_file}' with {len(df)} records.")
 # One group (source) will be the "younger" population, and the other (target) the "older" one.
 split_column = 'age' # Assuming 'age4' was a typo for 'age'
 
-split_value = 50
+split_value = 65
 print(f"Splitting the dataset by the median age: {split_value:.2f} years.")
 
 # Create the source dataset (age <= median)
-source_df = df[df[split_column] <= split_value].copy()
+source_df = df[df[split_column] >= split_value].copy()
 
 # Create the target dataset (age > median)
-target_df = df[df[split_column] > split_value].copy()
+target_df = df[df[split_column] < split_value].copy()
 
 # Save the new datasets to CSV files
 source_df.to_csv(source_file, index=False)

@@ -1,10 +1,8 @@
 import tensorflow as tf
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-import io
 
 # Definindo a semente para reprodutibilidade
 tf.random.set_seed(42)
@@ -25,11 +23,12 @@ X_val_scaled_target = scaler.transform(X_val_target)
 
 base_model_target = keras.models.Sequential([
     # Camada de entrada com a quantidade de features do nosso dataset
-    keras.layers.InputLayer(input_shape=(X_train_scaled_target.shape[1],)),
+    keras.layers.InputLayer(shape=(X_train_scaled_target.shape[1],)),
     
     # Camadas ocultas com ativação ReLU
     keras.layers.Dense(32, activation='relu', name='camada_oculta_1'),
     keras.layers.Dense(16, activation='relu', name='camada_oculta_2'),
+    keras.layers.Dense(8, activation='relu', name='camada_oculta_3'),
     
     # Camada de saída: 1 neurônio porque é classificação binária (morreu/não morreu)
     # Ativação Sigmoid para retornar uma probabilidade entre 0 e 1.
