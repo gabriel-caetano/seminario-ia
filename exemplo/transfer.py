@@ -49,7 +49,7 @@ print("\n--- Treinando o Modelo Base com os dados fonte (pacientes idosos) ---")
 history = base_model_source.fit(
     X_train_scaled_source,
     y_train_source,
-    epochs=100,
+    epochs=50,
     validation_data=(X_val_scaled_source, y_val_source),
     verbose=0 
 )
