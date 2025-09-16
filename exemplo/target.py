@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-
+tf.config.set_visible_devices([], 'GPU')
 # Definindo a semente para reprodutibilidade
 tf.random.set_seed(42)
 keras = tf.keras
@@ -13,8 +13,8 @@ scaler = StandardScaler()
 target_df = pd.read_csv('dataset_target.csv')
 
 # O modelo será treinado do zero nos dados "alvo".
-X_target = target_df.drop('death', axis=1)
-y_target = target_df['death']
+X_target = target_df.drop('CKD progression', axis=1)
+y_target = target_df['CKD progression']
 X_train_target, X_val_target, y_train_target, y_val_target = train_test_split(
     X_target, y_target, test_size=0.2, random_state=42
 )
@@ -26,9 +26,8 @@ base_model_target = keras.models.Sequential([
     keras.layers.InputLayer(shape=(X_train_scaled_target.shape[1],)),
     
     # Camadas ocultas com ativação ReLU
-    keras.layers.Dense(32, activation='relu', name='camada_oculta_1'),
-    keras.layers.Dense(16, activation='relu', name='camada_oculta_2'),
-    keras.layers.Dense(8, activation='relu', name='camada_oculta_3'),
+    keras.layers.Dense(16, activation='relu', name='camada_oculta_1'),
+    keras.layers.Dense(8, activation='relu', name='camada_oculta_2'),
     
     # Camada de saída: 1 neurônio porque é classificação binária (morreu/não morreu)
     # Ativação Sigmoid para retornar uma probabilidade entre 0 e 1.
@@ -53,7 +52,7 @@ print("\n--- Treinando o Modelo Base (nos dados alvo) ---")
 history = base_model_target.fit(
     X_train_scaled_target,
     y_train_target,
-    epochs=50, # Número de vezes que o modelo verá todo o dataset
+    epochs=20, # Número de vezes que o modelo verá todo o dataset
     validation_data=(X_val_scaled_target, y_val_target),
     verbose=0 # Usamos verbose=0 para não poluir a saída, mas você pode usar 1 para ver o progresso
 )
@@ -61,9 +60,36 @@ print("Treinamento concluído!")
 
 # --- 5. Avaliação do Modelo Base ---
 
+
+# --- Métricas detalhadas ---
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 loss, accuracy = base_model_target.evaluate(X_val_scaled_target, y_val_target, verbose=0)
-print(f"\nAcurácia do modelo base no conjunto target: {accuracy:.2%}")
-print(f"\nPerda do modelo base no conjunto target: {loss:.2%}")
+y_pred = (base_model_target.predict(X_val_scaled_target) > 0.5).astype(int)
+prec = precision_score(y_val_target, y_pred, zero_division=0)
+rec = recall_score(y_val_target, y_pred, zero_division=0)
+f1 = f1_score(y_val_target, y_pred, zero_division=0)
+print("\n--- Métricas no conjunto de validação (Target) ---")
+print(f"{'Métrica':<10} {'Valor':>10}")
+print(f"{'Acurácia':<10} {accuracy:>10.2%}")
+print(f"{'Perda':<10} {loss:>10.4f}")
+print(f"{'Precisão':<10} {prec:>10.2%}")
+print(f"{'Recall':<10} {rec:>10.2%}")
+print(f"{'F1-score':<10} {f1:>10.2%}")
+
+train_acc = history.history['accuracy'][-1]
+val_acc = history.history['val_accuracy'][-1]
+train_loss = history.history['loss'][-1]
+val_loss = history.history['val_loss'][-1]
+
+print("\n--- Comparação Final Treino vs Validação ---")
+print(f"Acurácia final - Treino: {train_acc:.2%} | Validação: {val_acc:.2%}")
+print(f"Perda final    - Treino: {train_loss:.4f} | Validação: {val_loss:.4f}")
+if train_acc - val_acc > 0.05:
+    print("\nPossível overfitting detectado: a acurácia de treino está significativamente maior que a de validação.")
+elif val_loss > train_loss * 1.2:
+    print("\nPossível overfitting detectado: a perda de validação está significativamente maior que a de treino.")
+else:
+    print("\nNão há sinais claros de overfitting.")
 
 # --- 6. Visualização do Treinamento ---
 
@@ -73,3 +99,11 @@ plt.gca().set_ylim(0, 1) # set the y-axis range to [0, 1]
 plt.title("Curvas de Aprendizado do Modelo Base target")
 plt.xlabel("Epochs")
 plt.show()
+
+
+# Métrica         Valor
+# Acurácia       
+# Perda          
+# Precisão       
+# Recall         
+# F1-score       

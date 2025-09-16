@@ -9,37 +9,37 @@ tf.random.set_seed(42)
 keras = tf.keras
 scaler = StandardScaler()
 
-# --- 1. Preparação dos Dados ---
-source_df = pd.read_csv('dataset_source.csv')
+# definicao de um modelo limpo
+def make_new_model(shape):
+    return keras.models.Sequential([
+        # Camada de entrada com a quantidade de features do nosso dataset
+        keras.layers.InputLayer(shape=(shape,)),
+        
+        # Camadas ocultas com ativação ReLU
+        keras.layers.Dense(4, activation='relu', name='camada_oculta_1'),
+        keras.layers.Dense(2, activation='relu', name='camada_oculta_2'),
+        
+        # Camada de saída: 1 neurônio porque é classificação binária (morreu/não morreu)
+        # Ativação Sigmoid para retornar uma probabilidade entre 0 e 1.
+        keras.layers.Dense(1, activation='sigmoid', name='camada_saida')
+    ])
 
-# O modelo será treinado do zero nos dados "fonte".
-X_source = source_df.drop('CKD progression', axis=1)
-y_source = source_df['CKD progression']
-X_train_source, X_val_source, y_train_source, y_val_source = train_test_split(
-    X_source, y_source, test_size=0.2, random_state=42
-)
-X_train_scaled_source = scaler.fit_transform(X_train_source)
-X_val_scaled_source = scaler.transform(X_val_source)
+def load_dataset(file_name):
+    df = pd.read_csv(file_name)
 
-base_model_source = keras.models.Sequential([
-    # Camada de entrada com a quantidade de features do nosso dataset
-    keras.layers.InputLayer(shape=(X_train_scaled_source.shape[1],)),
+    X = df.drop('CKD progression', axis=1)
+    y = df['CKD progression']
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    return (X_train_scaled, X_test_scaled, y_train, y_test)
     
-    # Camadas ocultas com ativação ReLU
-    keras.layers.Dense(4, activation='relu', name='camada_oculta_1'),
-    keras.layers.Dense(2, activation='relu', name='camada_oculta_2'),
-    
-    # Camada de saída: 1 neurônio porque é classificação binária (morreu/não morreu)
-    # Ativação Sigmoid para retornar uma probabilidade entre 0 e 1.
-    keras.layers.Dense(1, activation='sigmoid', name='camada_saida')
-])
 
-# --- 3. Compilação do Modelo ---
-base_model_source.compile(
-    loss='binary_crossentropy',      # Ideal para classificação binária
-    optimizer=keras.optimizers.Adam(learning_rate=0.01), # Otimizador popular e eficiente
-    metrics=['accuracy']             # Métrica para acompanhar o desempenho
-)
+(X_train_scaled, X_test_scaled, y_train, y_test) = load_dataset('dataset_source.csv')
+
+base_model_source = make_new_model(X_train_scaled.shape[1])
 
 print("\n--- Arquitetura do Modelo Base ---")
 base_model_source.summary()
@@ -48,28 +48,28 @@ print("-" * 25)
 # --- 4. Treinamento do Modelo Base ---
 print("\n--- Treinando o Modelo Base (nos dados fonte) ---")
 history = base_model_source.fit(
-    X_train_scaled_source,
-    y_train_source,
-    epochs=20, # Número de vezes que o modelo verá todo o dataset
-    validation_data=(X_val_scaled_source, y_val_source),
+    X_train_scaled,
+    y_train,
+    epochs=10, # Número de vezes que o modelo verá todo o dataset
+    validation_data=(X_test_scaled, y_test),
     verbose=0 # Usamos verbose=0 para não poluir a saída, mas você pode usar 1 para ver o progresso
 )
 print("Treinamento concluído!")
 
 # --- 5. Avaliação do Modelo Base ---
-loss, accuracy = base_model_source.evaluate(X_val_scaled_source, y_val_source, verbose=0)
+loss, accuracy = base_model_source.evaluate(X_test_scaled, y_test, verbose=0)
 print(f"\nAcurácia do modelo base no conjunto source: {accuracy:.2%}")
 
 print(f"\nPerda do modelo base no conjunto source: {loss:.2%}")
 
 # --- Métricas detalhadas ---
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-y_pred = (base_model_source.predict(X_val_scaled_source) > 0.5).astype(int)
+y_pred = (base_model_source.predict(X_test_scaled) > 0.5).astype(int)
 print("\nMétricas detalhadas no conjunto de validação:")
-print(f"Acurácia : {accuracy_score(y_val_source, y_pred):.2%}")
-print(f"Precisão : {precision_score(y_val_source, y_pred, zero_division=0):.2%}")
-print(f"Recall   : {recall_score(y_val_source, y_pred, zero_division=0):.2%}")
-print(f"F1-score : {f1_score(y_val_source, y_pred, zero_division=0):.2%}")
+print(f"Acurácia : {accuracy_score(y_test, y_pred):.2%}")
+print(f"Precisão : {precision_score(y_test, y_pred, zero_division=0):.2%}")
+print(f"Recall   : {recall_score(y_test, y_pred, zero_division=0):.2%}")
+print(f"F1-score : {f1_score(y_test, y_pred, zero_division=0):.2%}")
 
 # --- Comparação entre treino e validação para análise de overfitting ---
 train_acc = history.history['accuracy'][-1]

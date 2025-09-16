@@ -15,7 +15,7 @@ print(f"Successfully loaded '{input_file}' with {len(df)} records.")
 # One group (source) will be the "younger" population, and the other (target) the "older" one.
 split_column = 'age' # Assuming 'age4' was a typo for 'age'
 
-split_value = 65
+split_value = 60
 print(f"Splitting the dataset by the median age: {split_value:.2f} years.")
 
 # Create the source dataset (age <= median)
