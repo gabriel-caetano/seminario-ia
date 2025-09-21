@@ -17,7 +17,10 @@ if __name__ == "__main__":
         print("Error: The dataset path must be a string ending with '.csv'.")
         sys.exit(1)
     
-    dataset = Dataset(file_name)
+    # full dataset
+    full = Dataset('datasets/dataset.csv', 'CKD progression')
+    idosos = Dataset('datasets/idosos.csv', 'CKD progression')
+    adultos = Dataset('datasets/adultos.csv', 'CKD progression')
     # print(dataset)
     # print(dataset.X_train.shape)
     # print(dataset.X_test.shape)
@@ -25,9 +28,8 @@ if __name__ == "__main__":
     # print(dataset.y_test.shape)
 
     model = MLP(
-        shape=dataset.getShape(),
+        shape=dataset.get_shape(),
         layers=[4,2],
-        activation='tanh'
     )
     model.summary()
     model.compile(

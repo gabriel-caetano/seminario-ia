@@ -1,51 +1,59 @@
-import sys
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from dataset import Dataset
 
-# receive one or 2 datasets as argument
-# if 1 dataset, train on it and test on it
-# if 2 datasets, train on the first and test on the second
-# at the end show the following metrics of the test:
-# accuracy
-# precision
-# recall
-# f1-score
-# confusion matrix
-# classification report
-from dataset import load_dataset  # Assumes load_dataset returns (X, y)
-from mlp import create_mlp_model  # Assumes create_mlp_model returns a compiled Keras model
+# import sys
+# from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from dataset import Dataset
+from mlp import MLP
 
-def main():
-    args = sys.argv[1:]
-    if len(args) == 1:
-        train_path = test_path = args[0]
-    elif len(args) == 2:
-        train_path, test_path = args
-    else:
-        print("Usage: python tester.py <train_dataset> [<test_dataset>]")
-        sys.exit(1)
+class Tester:
+    def __init__(self, target_column, source_dataset, target_dataset=None):
+        self.source_dataset = source_dataset
+        self.target_dataset = target_dataset
+        self.target_column = target_column
+        self.model_history = []
 
-    # Load datasets
-    X_train, y_train = load_dataset(train_path)
-    X_test, y_test = load_dataset(test_path)
+        if not isinstance(self.source_dataset, Dataset):
+            raise TypeError("source_dataset must be an instance of the Dataset class")
+        if target_dataset is not None and not isinstance(self.target_dataset, Dataset):
+            raise TypeError("target_dataset must be an instance of the Dataset class")
 
-    # Create and train model
-    model = create_mlp_model(input_shape=X_train.shape[1], num_classes=len(set(y_train)))
-    model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=0)
+    def run(self):
+        model = MLP(self.source_dataset.get_shape())
 
-    # Predict
-    y_pred = model.predict(X_test)
-    y_pred_classes = y_pred.argmax(axis=1) if y_pred.ndim > 1 else (y_pred > 0.5).astype(int)
+        # first train
+        model.train(self.source_dataset)
 
-    # Metrics
-    print("Accuracy:", accuracy_score(y_test, y_pred_classes))
-    print("Precision:", precision_score(y_test, y_pred_classes, average='weighted'))
-    print("Recall:", recall_score(y_test, y_pred_classes, average='weighted'))
-    print("F1-score:", f1_score(y_test, y_pred_classes, average='weighted'))
-    print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred_classes))
-    print("Classification Report:\n", classification_report(y_test, y_pred_classes))
+        # evaluate on source dataset
+        model.predict(self.source_dataset)
+        self.model_history.append(model)
+        if self.target_dataset is not None:
+            # evaluate on target dataset before transfer learning
+            model.predict(self.target_dataset)
+            print("\n--- Transfer Learning on Target Dataset ---")
+            # Freeze layers except the last one
+            for layer in model.model.layers[:-2]:
+                layer.trainable = False
 
-    # Save the model
-    model.save("model.h5")
+            # Recompile the model to apply the changes
+            model.compile(learning_rate=0.01)  # You might want to use a lower learning rate for fine-tuning
+
+            model.train(self.target_dataset)
+
+            model.predict(self.target_dataset)
+            self.model_history.append(model)
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) < 2:
+        print("Error: Please provide at least one dataset path as argument.")
+        sys.exit(1)
+    
+    dataset_paths = sys.argv[1:]
+    if len(dataset_paths) > 2:
+        print("Error: Please provide at most two dataset paths.")
+        sys.exit(1)
+    dataset_source = Dataset(sys.argv[1], target_column='CKD progression')
+    dataset_target = Dataset(sys.argv[2], target_column='CKD progression') if len(dataset_paths) == 2 else None
+
+    tester = Tester('CKD progression', source_dataset=dataset_source, target_dataset=dataset_target)
+    tester.run()
