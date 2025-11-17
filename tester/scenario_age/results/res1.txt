@@ -1,0 +1,61 @@
+--- Experimento com divisão por idade ---
+
+--- Running Tester: Target Tester ---
+
+Treinamento interrompido na época: 2175
+
+Possível overfitting detectado: a acurácia de treino está significativamente maior que a de validação.
+Acurácia final - Treino: 83.42% | Validação: 76.00%
+Perda final    - Treino: 0.4624 | Validação: 0.4514
+
+--- Evaluating on Source Dataset ---
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 78.00%
+Precisão : 64.71%
+Recall   : 68.75%
+F1-score : 66.67%
+
+--- Execution time: 134.80 seconds ---
+
+--- Running Tester: Transfer Learning Tester ---
+
+Treinamento interrompido na época: 905
+
+Possível overfitting detectado: a perda de validação está significativamente maior que a de treino.
+Acurácia final - Treino: 83.38% | Validação: 84.12%
+Perda final    - Treino: 0.3873 | Validação: 0.4770
+
+--- Evaluating on Source Dataset ---
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 84.71%
+Precisão : 70.00%
+Recall   : 55.26%
+F1-score : 61.76%
+
+--- Evaluating on Target Dataset before Transfer Learning ---
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 74.00%
+Precisão : 63.64%
+Recall   : 43.75%
+F1-score : 51.85%
+
+--- Transfer Learning on Target Dataset ---
+Freezing layer: camada_oculta_1_relu
+Freezing layer: camada_oculta_2_relu
+
+Treinamento interrompido na época: 261
+
+Não há sinais claros de overfitting.
+Acurácia final - Treino: 78.89% | Validação: 76.00%
+Perda final    - Treino: 0.4639 | Validação: 0.4114
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 76.00%
+Precisão : 62.50%
+Recall   : 62.50%
+F1-score : 62.50%
+
+--- Execution time: 105.29 seconds ---

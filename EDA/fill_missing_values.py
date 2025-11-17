@@ -1,6 +1,5 @@
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from boruta import BorutaPy
 from sklearn.impute import SimpleImputer
 
 def fill_missing_values(dataset_path, target_column):
@@ -34,7 +33,7 @@ def fill_missing_values(dataset_path, target_column):
     imputer_bmi = SimpleImputer(strategy='median')
     processed_dataset['BMI'] = imputer_bmi.fit_transform(processed_dataset[['BMI']])
     
-    processed_dataset.to_csv(f'{file_location}/{file_name}_filled.csv', index=False)
+    processed_dataset.to_csv(f'{file_location}/filled/{file_name}_filled.csv', index=False)
 
 
 

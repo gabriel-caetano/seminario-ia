@@ -20,7 +20,7 @@ class Dataset:
             self.target = self.ds[target_column]
             # split into train and test sets
             # by default with test_size=0.2
-            self.split()
+            self.split(0.6, 0.2, 0.2)
 
     def setTargetColumn(self, target_column):
         self.target_column = target_column  
@@ -29,22 +29,31 @@ class Dataset:
         self.target = self.ds[target_column]
         # split into train and test sets
         # by default with test_size=0.2
-        self.split()
+        self.split(0.8, 0.1, 0.1)
 
     def __repr__(self):
         return (f"Dataset(shape={self.get_shape()}")
 
-    def split(self, test_size=TEST_SIZE, random_state=RANDOM_STATE):
-        #  splitting
-        features_train, features_test, self.target_train, self.target_test = train_test_split(
+    def split(self, train_size, validation_size, test_size, random_state=RANDOM_STATE):
+        features_train_val, self.features_test, target_train_val, self.target_test = train_test_split(
             self.features,
             self.target,
             test_size=test_size,
-            random_state=random_state
+            random_state=random_state,
+            stratify=self.target
         )
-        # scaling
-        self.features_train = scaler.fit_transform(features_train)
-        self.features_test = scaler.transform(features_test)
+
+        # Segundo split: separa treino de validação
+        # Calcula a proporção de validação em relação ao conjunto treino+validação
+        val_size_adjusted = validation_size / (train_size + validation_size)
+
+        self.features_train, self.features_validation, self.target_train, self.target_validation = train_test_split(
+            features_train_val,
+            target_train_val,
+            test_size=val_size_adjusted,
+            random_state=random_state,
+            stratify=target_train_val
+        )
 
     def get_shape(self):
         return self.features.shape[1]

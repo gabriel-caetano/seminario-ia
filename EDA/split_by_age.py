@@ -13,10 +13,15 @@ def split_by_age(age=60, dataset_path='datasets/dataset.csv'):
     source_df = df[df[split_column] >= age].copy()
 
     target_df = df[df[split_column] < age].copy()
+    # Remove the split column from both dataframes
+    source_df = source_df.drop(columns=[split_column])
+    target_df = target_df.drop(columns=[split_column])
+    df = df.drop(columns=[split_column])
 
     # Save the new datasets to CSV files
-    source_df.to_csv(f'{file_location}/{source_file}', index=False)
-    target_df.to_csv(f'{file_location}/{target_file}', index=False)
+    source_df.to_csv(f'{file_location}/age/{source_file}', index=False)
+    target_df.to_csv(f'{file_location}/age/{target_file}', index=False)
+    df.to_csv(f'{file_location}/age/{file_name}_agefull.csv', index=False)
 
 if __name__ == "__main__":
     split_by_age(dataset_path='datasets/dataset_filled_boruta.csv')

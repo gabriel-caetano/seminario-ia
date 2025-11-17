@@ -1,0 +1,23 @@
+{
+    "source": {
+        "accuracy": 0.45,
+        "precision": 1.0,
+        "recall": 0.18518518518518517,
+        "f1_score": 0.3125,
+        "auc_roc": 0.7735042572021484
+    },
+    "target": {
+        "accuracy": 0.725,
+        "precision": 0.8076923076923077,
+        "recall": 0.7777777777777778,
+        "f1_score": 0.7924528301886793,
+        "auc_roc": 0.7777777314186096
+    },
+    "transfer_learning": {
+        "accuracy": 0.8,
+        "precision": 0.7714285714285715,
+        "recall": 1.0,
+        "f1_score": 0.8709677419354839,
+        "auc_roc": 0.7749288082122803
+    }
+}

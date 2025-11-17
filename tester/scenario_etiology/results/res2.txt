@@ -1,0 +1,61 @@
+--- Experimento com divisão por etiologia ---
+
+--- Running Tester: Target Tester ---
+
+Treinamento interrompido na época: 1018
+
+Não há sinais claros de overfitting.
+Acurácia final - Treino: 86.84% | Validação: 85.53%
+Perda final    - Treino: 0.3568 | Validação: 0.3786
+
+--- Evaluating on Source Dataset ---
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 85.53%
+Precisão : 66.67%
+Recall   : 30.77%
+F1-score : 42.11%
+
+--- Execution time: 68.47 seconds ---
+
+--- Running Tester: Transfer Learning Tester ---
+
+Treinamento interrompido na época: 1251
+
+Não há sinais claros de overfitting.
+Acurácia final - Treino: 86.96% | Validação: 85.42%
+Perda final    - Treino: 0.3667 | Validação: 0.3411
+
+--- Evaluating on Source Dataset ---
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 86.11%
+Precisão : 72.73%
+Recall   : 80.00%
+F1-score : 76.19%
+
+--- Evaluating on Target Dataset before Transfer Learning ---
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 82.89%
+Precisão : 50.00%
+Recall   : 76.92%
+F1-score : 60.61%
+
+--- Transfer Learning on Target Dataset ---
+Freezing layer: camada_oculta_1_relu
+Freezing layer: camada_oculta_2_relu
+
+Treinamento interrompido na época: 181
+
+Não há sinais claros de overfitting.
+Acurácia final - Treino: 82.89% | Validação: 86.84%
+Perda final    - Treino: 0.3736 | Validação: 0.3322
+
+Métricas detalhadas no conjunto de validação:
+Acurácia : 86.84%
+Precisão : 66.67%
+Recall   : 46.15%
+F1-score : 54.55%
+
+--- Execution time: 123.80 seconds ---
