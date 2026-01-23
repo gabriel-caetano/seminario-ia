@@ -35,9 +35,9 @@ def apply_boruta(dataset_path, target_column):
     dataset_boruta = dataset[selected_columns]
 
     # 6. Salvar o novo arquivo
-    dataset_boruta.to_csv(f'{file_location}/boruta/{file_name}_boruta_prego.csv', index=False)
+    dataset_boruta.to_csv(f'{file_location}/boruta/{file_name}_boruta_prego_rfr.csv', index=False)
 
-    print(f"\nNovo dataset salvo como '{file_location}/boruta/{file_name}_boruta_prego.csv'.")
+    print(f"\nNovo dataset salvo como '{file_location}/boruta/{file_name}_boruta_prego_rfr.csv'.")
 
 
 if __name__ == "__main__":

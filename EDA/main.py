@@ -10,7 +10,7 @@ from scale import scale
 if __name__ == "__main__":
     # fill_missing_values('datasets/dataset.csv', 'CKD progression')
     
-    apply_boruta('datasets/filled/dataset_prego_filled.csv', 'CKD progression')
+    apply_boruta('datasets/filled/dataset_rfregressor_and_missing_flags_filled.csv', 'CKD progression')
     
     # split and drop column used for splitting
     # split_by_age(dataset_path='datasets/filled/boruta/dataset_filled_boruta.csv')
