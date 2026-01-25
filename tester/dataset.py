@@ -12,7 +12,22 @@ class Dataset:
     def __init__(self, file_name, target_column=None):
         # load file to dataset
         self.ds = pd.read_csv(file_name)
-        self.target_column = target_column  
+        self.target_column = target_column
+
+        for col_index in range(self.ds.shape[1]):
+            col_name = self.ds.columns[col_index]
+            
+            if target_column and col_name == target_column:
+                continue
+            
+            unique_values = self.ds.iloc[:, col_index].nunique()
+            if unique_values <= 10:
+                # categorical feature - não normaliza
+                continue
+            else:
+                self.ds[col_name] = self.ds[col_name].astype(float)
+                scaled_values = scaler.fit_transform(self.ds[col_name].values.reshape(-1, 1))
+                self.ds[col_name] = scaled_values.flatten()  
 
         if target_column is not None:
             # split features(x) and target(y)
@@ -21,6 +36,11 @@ class Dataset:
             # split into train and test sets
             # by default with test_size=0.2
             self.split(0.6, 0.2, 0.2)
+
+    def count_unique_values(self, column_index):
+        column_name = self.features.columns[column_index]
+        unique_values = self.features[column_name].nunique()
+        return unique_values
 
     def setTargetColumn(self, target_column):
         self.target_column = target_column  
@@ -32,7 +52,7 @@ class Dataset:
         self.split(0.8, 0.1, 0.1)
 
     def __repr__(self):
-        return (f"Dataset(shape={self.get_shape()}")
+        return (f"Dataset(shape={self.get_shape()})")
 
     def split(self, train_size, validation_size, test_size, random_state=RANDOM_STATE):
         features_train_val, self.features_test, target_train_val, self.target_test = train_test_split(
