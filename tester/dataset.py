@@ -12,6 +12,7 @@ class Dataset:
     def __init__(self, file_name, target_column=None):
         # load file to dataset
         self.ds = pd.read_csv(file_name)
+        self.ds.drop(columns='eGFR', inplace=True, errors='ignore')  # drop column if exists
         self.target_column = target_column
 
         for col_index in range(self.ds.shape[1]):
