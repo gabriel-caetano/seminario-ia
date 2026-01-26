@@ -46,8 +46,9 @@ ACTIVATION='relu'
 LOSS='binary_crossentropy'
 
 class MLP:
-    def __init__(self, shape, layers=HIDDEN_LAYERS, activation=ACTIVATION, pretrained_encoder=None):
+    def __init__(self, shape, layers=HIDDEN_LAYERS, activation=ACTIVATION, pretrained_encoder=None, freeze_encoder=None):
         self.model = keras.models.Sequential()
+        self.shape = shape
         
         if pretrained_encoder is not None:
             print("Usando encoder pré-treinado!")
@@ -56,7 +57,7 @@ class MLP:
             for layer in pretrained_encoder.layers:
                 layer.trainable = False
         else:
-            self.model.add(keras.layers.InputLayer(shape=(shape,)))
+            self.model.add(keras.layers.InputLayer(input_shape=(self.shape,), name='input_layer'))
             for idx, neurons in enumerate(layers):
                 self.model.add(
                     keras.layers.Dense(
@@ -67,7 +68,10 @@ class MLP:
                     )
                 )
                 self.model.add(keras.layers.Dropout(DROPOUTS[idx], name=f'dropout_{idx+1}'))
-        
+
+        if freeze_encoder:
+            self.model.add(keras.layers.Dense(32, activation=activation, name='camada_intermediaria'))
+
         self.model.add(keras.layers.Dense(1, activation='sigmoid', name='camada_saida_sigmoid'))
         self.compile()
         self.history = None
@@ -87,11 +91,11 @@ class MLP:
                 weight_decay=weight_decay   # A common starting point for weight decay
             ), # Otimizador popular e eficiente
             metrics=[
-                keras.metrics.Accuracy(name='accuracy'),
+                'accuracy',
                 keras.metrics.AUC(name='auc'),
                 keras.metrics.Recall(name='recall'),
                 keras.metrics.Precision(name='precision'),
-                keras.metrics.F1Score(name='f1_score')]             # Métrica para acompanhar o desempenho
+                keras.metrics.F1Score(name='f1_score', dtype='float32')]       
         )
 
     def summary(self):
@@ -111,12 +115,14 @@ class MLP:
             restore_best_weights=True
         )
 
+        y_train = dataset.target_train.astype('float32')
+        y_val = dataset.target_validation.astype('float32')
 
         history = self.model.fit(
             dataset.features_train,
-            dataset.target_train,
+            y_train,
             epochs=epochs, 
-            validation_data=(dataset.features_validation, dataset.target_validation),
+            validation_data=(dataset.features_validation, y_val),
             callbacks=[early_stopping],
             batch_size=batch_size,
             verbose=verbose 
@@ -184,6 +190,9 @@ class MLP:
             print("Erro: Nenhum histórico de treinamento disponível. Execute o método train() primeiro.")
             return
         
+        if filename is None:
+            return
+        
         import os
         os.makedirs('plot', exist_ok=True)
         
@@ -229,32 +238,32 @@ class MLP:
         print(f"\nGráfico salvo como: {filename}")
 
    
-    @tf.function(reduce_retracing=True)
-    def _predict_step(self, inputs):
-        return self.model(inputs, training=False)
+    # @tf.function(reduce_retracing=True)
+    # def _predict_step(self, inputs):
+    #     return self.model(inputs, training=False)
 
-    def predict(self, dataset):
-        # --- Métricas detalhadas ---
-        raw_predictions = self._predict_step(dataset.features_test)
-        target_predicted = (raw_predictions > 0.5).numpy().astype(int)
+    # def predict(self, dataset):
+    #     # --- Métricas detalhadas ---
+    #     raw_predictions = self._predict_step(dataset.features_test)
+    #     target_predicted = (raw_predictions > 0.5).numpy().astype(int)
 
-        res = {
-            "accuracy": accuracy_score(dataset.target_test, target_predicted),
-            "precision": precision_score(dataset.target_test, target_predicted, zero_division=0),
-            "recall": recall_score(dataset.target_test, target_predicted, zero_division=0),
-            "f1_score": f1_score(dataset.target_test, target_predicted, zero_division=0),
-            "auc_roc": tf.keras.metrics.AUC()(dataset.target_test, raw_predictions).numpy()
-        }
-        # print("\nMétricas detalhadas no conjunto de validação:")
-        # for key, value in res.items():
-        #     print(f"{key} : {value:.2%}")
+    #     res = {
+    #         "accuracy": accuracy_score(dataset.target_test, target_predicted),
+    #         "precision": precision_score(dataset.target_test, target_predicted, zero_division=0),
+    #         "recall": recall_score(dataset.target_test, target_predicted, zero_division=0),
+    #         "f1_score": f1_score(dataset.target_test, target_predicted, zero_division=0),
+    #         "auc_roc": tf.keras.metrics.AUC()(dataset.target_test, raw_predictions).numpy()
+    #     }
+    #     # print("\nMétricas detalhadas no conjunto de validação:")
+    #     # for key, value in res.items():
+    #     #     print(f"{key} : {value:.2%}")
 
-        # Guarantee all metric values are native Python floats so the result is JSON-serializable
-        for k, v in list(res.items()):
-            try:
-                res[k] = float(v)
-            except Exception:
-                # leave value as-is if it cannot be converted
-                pass
+    #     # Guarantee all metric values are native Python floats so the result is JSON-serializable
+    #     for k, v in list(res.items()):
+    #         try:
+    #             res[k] = float(v)
+    #         except Exception:
+    #             # leave value as-is if it cannot be converted
+    #             pass
 
-        return res
+    #     return res

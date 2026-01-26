@@ -1,0 +1,15 @@
+RELATÓRIO DE CLASSIFICAÇÃO DO MELHOR MODELO OTIMIZADO:
+
+              precision    recall  f1-score   support
+
+           0     0.7857    0.9706    0.8684        34
+           1     0.8750    0.4375    0.5833        16
+
+    accuracy                         0.8000        50
+   macro avg     0.8304    0.7040    0.7259        50
+weighted avg     0.8143    0.8000    0.7772        50
+
+MATRIZ DE CONFUSÃO DO MELHOR MODELO OTIMIZADO:
+
+[[33  1]
+ [ 9  7]]
