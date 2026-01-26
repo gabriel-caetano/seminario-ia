@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 import pandas as pd
 
-class ReconstructionMLP:
+class Autoencoder:
     def __init__(
         self, 
         shape, 
