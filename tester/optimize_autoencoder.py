@@ -3,9 +3,6 @@ import optuna
 from optuna.pruners import MedianPruner
 from dataset import Dataset
 from autoencoder import Autoencoder
-from mlp_modified import MLP
-from sklearn.metrics import f1_score
-import numpy as np
 
 
 def objective(trial, dataset_path, target_column='CKD progression'):
@@ -116,11 +113,11 @@ def optimize_hyperparameters(dataset_path, target_column='CKD progression', n_tr
     
     # histórico de otimização
     fig = optuna.visualization.matplotlib.plot_optimization_history(study)
-    plt.savefig('optuna_history.png', dpi=300, bbox_inches='tight')
+    plt.savefig('plot/optuna_history.png', dpi=300, bbox_inches='tight')
     
     # importância dos hiperparâmetros
     fig = optuna.visualization.matplotlib.plot_param_importances(study)
-    plt.savefig('optuna_importance.png', dpi=300, bbox_inches='tight')
+    plt.savefig('plot/optuna_importance.png', dpi=300, bbox_inches='tight')
     
     return study
 
@@ -162,7 +159,7 @@ def train_with_best_params(study, dataset_path, target_column='CKD progression')
 
 if __name__ == "__main__":
     study = optimize_hyperparameters(
-        dataset_path='datasets/dataset_filled_boruta_age_adults.csv',
+        dataset_path='datasets/dataset_filled_boruta_age_elderly.csv',
         target_column='CKD progression',
         n_trials=20,  
         study_name='autoencoder_optimization'
@@ -170,6 +167,6 @@ if __name__ == "__main__":
     
     best_autoencoder = train_with_best_params(
         study,
-        dataset_path='datasets/dataset_filled_boruta_age_adults.csv',
+        dataset_path='datasets/dataset_filled_boruta_age_elderly.csv',
         target_column='CKD progression'
     )

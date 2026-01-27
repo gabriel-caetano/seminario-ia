@@ -3,7 +3,8 @@ import optuna
 from optuna.pruners import MedianPruner
 from dataset import Dataset
 from mlp_modified import MLP
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, roc_auc_score
+import numpy as np
 
 
 def objective(trial, dataset_path, target_column='CKD progression'):
@@ -30,7 +31,6 @@ def objective(trial, dataset_path, target_column='CKD progression'):
         y_pred_class = (y_pred > 0.5).astype(int).flatten()
         y_true = dataset.target_validation.values
         
-        from sklearn.metrics import f1_score
         f1 = f1_score(y_true, y_pred_class)
         
         trial.report(f1, step=0)
@@ -78,21 +78,19 @@ def optimize_hyperparameters(
     import matplotlib.pyplot as plt
     
     fig = optuna.visualization.matplotlib.plot_optimization_history(study)
-    plt.savefig('optuna_baseline_history.png', dpi=300, bbox_inches='tight')
+    plt.savefig('plot/optuna_baseline_history.png', dpi=300, bbox_inches='tight')
     
     fig = optuna.visualization.matplotlib.plot_param_importances(study)
-    plt.savefig('optuna_baseline_importance.png', dpi=300, bbox_inches='tight')
+    plt.savefig('plot/optuna_baseline_importance.png', dpi=300, bbox_inches='tight')
     
     return study
 
 
 def train_with_best_params(
     study,
-    dataset_path,
-    target_column='CKD progression'
+    dataset,
 ):
     best_params = study.best_params
-    dataset = Dataset(dataset_path, target_column)
     
     mlp = MLP(shape=dataset.get_shape())
     
@@ -113,12 +111,28 @@ if __name__ == "__main__":
     study = optimize_hyperparameters(
         dataset_path='datasets/dataset_filled_boruta_age_adults.csv',
         target_column='CKD progression',
-        n_trials=100,
+        n_trials=20,
         study_name='baseline_optimization'
     )
+
+    dataset = Dataset('datasets/dataset_filled_boruta_age_adults.csv', 'CKD progression')
     
     best_model = train_with_best_params(
         study,
-        dataset_path='datasets/dataset_filled_boruta_age_adults.csv',
-        target_column='CKD progression'
+        dataset,
     )
+
+    from sklearn.metrics import classification_report, confusion_matrix
+
+    y_pred = best_model.model.predict(dataset.features_test)
+    y_pred_class = (y_pred > 0.5).astype(int).flatten()
+    y_true = dataset.target_test.values
+    print("RELATÓRIO DE CLASSIFICAÇÃO DO MELHOR MODELO OTIMIZADO:\n")
+    print(classification_report(y_true, y_pred_class, digits=4))
+    print("MATRIZ DE CONFUSÃO DO MELHOR MODELO OTIMIZADO:\n")
+    print(confusion_matrix(y_true, y_pred_class))
+    print("CURVA ROC AUC DO MELHOR MODELO OTIMIZADO:\n")
+    from sklearn.metrics import roc_curve, auc
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+    auc_score = auc(fpr, tpr)
+    print(f"AUC-ROC: {auc_score:.4f}")

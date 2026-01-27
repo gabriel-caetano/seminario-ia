@@ -95,7 +95,7 @@ class MLP:
                 keras.metrics.AUC(name='auc'),
                 keras.metrics.Recall(name='recall'),
                 keras.metrics.Precision(name='precision'),
-                keras.metrics.F1Score(name='f1_score', dtype='float32')]       
+                keras.metrics.F1Score(name='f1-score', dtype=tf.float32)]       
         )
 
     def summary(self):
@@ -145,8 +145,8 @@ class MLP:
         val_precision = extract_value(history.history['val_precision'][-1])
         train_recall = extract_value(history.history['recall'][-1])
         val_recall = extract_value(history.history['val_recall'][-1])
-        train_f1_score = extract_value(history.history['f1_score'][-1])
-        val_f1_score = extract_value(history.history['val_f1_score'][-1])
+        train_f1_score = extract_value(history.history['f1-score'][-1])
+        val_f1_score = extract_value(history.history['val_f1-score'][-1])
         train_auc = extract_value(history.history['auc'][-1])
         val_auc = extract_value(history.history['val_auc'][-1])
         

@@ -3,9 +3,9 @@ import optuna
 from optuna.pruners import MedianPruner
 from dataset import Dataset
 from mlp_modified import MLP
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, recall_score, roc_auc_score
 from tensorflow import keras
-
+import numpy as np
 
 def objective(trial, dataset_path, encoder_path, target_column='CKD progression'):
     dataset = Dataset(dataset_path, target_column)
@@ -33,14 +33,17 @@ def objective(trial, dataset_path, encoder_path, target_column='CKD progression'
             name=None
         )
         
-        y_pred = mlp.model.predict(dataset.features_test, verbose=0)
+        y_pred = mlp.model.predict(dataset.features_validation, verbose=0)
         y_pred_class = (y_pred > 0.5).astype(int).flatten()
-        y_true = dataset.target_test.values
+        y_true = dataset.target_validation.values
+
+        import numpy as np
+        print(f"Distribuição das predições: {np.unique(y_pred_class, return_counts=True)}")
+        print(f"Distribuição dos targets: {np.unique(y_true, return_counts=True)}")
+        recall = recall_score(y_true, y_pred_class)
+        print(f"Recall: {recall:.4f}")
         
-        from sklearn.metrics import f1_score
         f1 = f1_score(y_true, y_pred_class)
-        
-        print(f"Trial {trial.number}: f1={f1:.4f}, lr={finetune_lr:.6f}, batch={batch_size}, epochs={finetune_epochs}")
         
         trial.report(f1, step=0)
         
@@ -90,10 +93,10 @@ def optimize_hyperparameters(
     import matplotlib.pyplot as plt
     
     fig = optuna.visualization.matplotlib.plot_optimization_history(study)
-    plt.savefig('optuna_frozen_history.png', dpi=300, bbox_inches='tight')
+    plt.savefig('plot/optuna_frozen_history.png', dpi=300, bbox_inches='tight')
     
     fig = optuna.visualization.matplotlib.plot_param_importances(study)
-    plt.savefig('optuna_frozen_importance.png', dpi=300, bbox_inches='tight')
+    plt.savefig('plot/optuna_frozen_importance.png', dpi=300, bbox_inches='tight')
     
     return study
 
@@ -102,7 +105,6 @@ def train_with_best_params(
     study,
     dataset,
     encoder_path='best_pretrained_encoder.keras',
-    target_column='CKD progression'
 ):
     best_params = study.best_params
     
@@ -128,16 +130,16 @@ def train_with_best_params(
 
 
 if __name__ == "__main__":
-    # study = optimize_hyperparameters(
-    #     dataset_path='datasets/dataset_filled_boruta_age_adults.csv',
-    #     encoder_path='best_pretrained_encoder.keras',
-    #     target_column='CKD progression',
-    #     n_trials=20,
-    #     study_name='frozen_optimization'
-    # )
+    study = optimize_hyperparameters(
+        dataset_path='datasets/dataset_filled_boruta_age_adults.csv',
+        encoder_path='best_pretrained_encoder.keras',
+        target_column='CKD progression',
+        n_trials=20,
+        study_name='frozen_optimization'
+    )
 
-    import joblib
-    study = joblib.load('frozen_optimization.pkl')
+    # import joblib
+    # study = joblib.load('frozen_optimization.pkl')
 
     dataset = Dataset('datasets/dataset_filled_boruta_age_adults.csv', 'CKD progression')
     
@@ -145,7 +147,6 @@ if __name__ == "__main__":
         study,
         dataset,
         encoder_path='best_pretrained_encoder.keras',
-        target_column='CKD progression'
     )
 
     from sklearn.metrics import classification_report, confusion_matrix
@@ -157,3 +158,8 @@ if __name__ == "__main__":
     print(classification_report(y_true, y_pred_class, digits=4))
     print("MATRIZ DE CONFUSÃO DO MELHOR MODELO OTIMIZADO:\n")
     print(confusion_matrix(y_true, y_pred_class))
+    print("CURVA ROC AUC DO MELHOR MODELO OTIMIZADO:\n")
+    from sklearn.metrics import roc_curve, auc
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+    auc_score = auc(fpr, tpr)
+    print(f"AUC-ROC: {auc_score:.4f}")
