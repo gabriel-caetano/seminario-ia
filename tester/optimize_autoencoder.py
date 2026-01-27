@@ -123,7 +123,6 @@ def optimize_hyperparameters(dataset_path, target_column='CKD progression', n_tr
 
 
 def train_with_best_params(study, dataset_path, target_column='CKD progression'):
-    """Treina o autoencoder com os melhores hiperparâmetros encontrados."""
     best_params = study.best_params
     
     dataset = Dataset(dataset_path, target_column)
@@ -152,7 +151,6 @@ def train_with_best_params(study, dataset_path, target_column='CKD progression')
     )
     
     autoencoder.save_encoder('best_pretrained_encoder.keras')
-    print("\nAutoencoder otimizado salvo em: best_pretrained_encoder.keras")
     
     return autoencoder
 

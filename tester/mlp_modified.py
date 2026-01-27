@@ -107,7 +107,7 @@ class MLP:
         epochs=5000,
         batch_size=32,
         verbose=0,
-        name=None
+        plot_path=None
     ):
         early_stopping = EarlyStopping(
             monitor='val_loss',
@@ -129,7 +129,7 @@ class MLP:
         )
 
         self.history = history.history 
-        self.plot_training_curves(name)
+        self.plot_training_curves(plot_path)
         actual_epochs = len(history.history['loss'])
         print(f"\nTreinamento interrompido na época: {actual_epochs}")
 
@@ -178,23 +178,23 @@ class MLP:
         
         return history.history
 
-    def plot_training_curves(self, filename='training_curves.png', figsize=(12, 5)):
+    def plot_training_curves(self, plot_path='training_curves.png', figsize=(12, 5)):
         """
         Plota e salva as curvas de treinamento (loss e accuracy).
         
         Args:
-            filename (str): Nome do arquivo para salvar o gráfico
+            plot_path (str): Nome do arquivo para salvar o gráfico
             figsize (tuple): Tamanho da figura (largura, altura)
         """
         if self.history is None:
             print("Erro: Nenhum histórico de treinamento disponível. Execute o método train() primeiro.")
             return
         
-        if filename is None:
+        if plot_path is None:
             return
         
-        import os
-        os.makedirs('plot', exist_ok=True)
+        # import os
+        # os.makedirs('plot', exist_ok=True)
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
         
@@ -233,9 +233,9 @@ class MLP:
         # ax4.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig('plot/' + filename, dpi=300, bbox_inches='tight')
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
         plt.close()
-        print(f"\nGráfico salvo como: {filename}")
+        print(f"\nGráfico salvo como: {plot_path}")
 
    
     # @tf.function(reduce_retracing=True)

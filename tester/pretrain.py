@@ -68,7 +68,7 @@ def pretrain_and_finetune(dataset_path, target_column='CKD progression'):
         epochs=200,
         batch_size=16,
         verbose=1,
-        name="finetune_frozen"
+        plot_path="finetune_frozen"
     )
     
     print("Fase 2b: Fine-tune com encoder descongelado\n")
@@ -78,7 +78,7 @@ def pretrain_and_finetune(dataset_path, target_column='CKD progression'):
         epochs=200,
         batch_size=16,
         verbose=1,
-        name="finetune_unfrozen"
+        plot_path="finetune_unfrozen"
     )
     
     
@@ -119,7 +119,7 @@ def pretrain_and_finetune(dataset_path, target_column='CKD progression'):
         epochs=200,
         batch_size=16,
         verbose=1,
-        name="baseline"
+        plot_path="baseline"
     )
     
     y_pred_baseline = mlp_baseline.model.predict(dataset.features_test)

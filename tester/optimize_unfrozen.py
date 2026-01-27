@@ -31,7 +31,7 @@ def objective(trial, dataset_path, encoder_path, target_column='CKD progression'
             epochs=finetune_epochs,
             batch_size=batch_size,
             verbose=0,
-            name=None
+            plot_path=None
         )
         
         y_pred = mlp.model.predict(dataset.features_validation, verbose=0)
@@ -123,7 +123,7 @@ def train_with_best_params(
         epochs=best_params['finetune_epochs'],
         batch_size=best_params['batch_size'],
         verbose=1,
-        name="best_unfrozen"
+        plot_path="best_unfrozen"
     )
     
     return mlp
