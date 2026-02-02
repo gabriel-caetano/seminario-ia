@@ -18,7 +18,7 @@ def apply_boruta(dataset_path, target_column):
     feature_names = dataset.drop(columns=[target_column]).columns
 
     # 3. Aplicar Boruta
-    rf = RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=5, random_state=42)
+    rf = RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=10, random_state=42)
     boruta = BorutaPy(rf, random_state=42)
     boruta.fit(X, y)
 
@@ -35,9 +35,9 @@ def apply_boruta(dataset_path, target_column):
     dataset_boruta = dataset[selected_columns]
 
     # 6. Salvar o novo arquivo
-    dataset_boruta.to_csv(f'{file_location}/boruta/{file_name}_boruta.csv', index=False)
+    dataset_boruta.to_csv(f'{file_location}/boruta/{file_name}_boruta_prego_rfr.csv', index=False)
 
-    print(f"\nNovo dataset salvo como '{file_location}/boruta/{file_name}_boruta.csv'.")
+    print(f"\nNovo dataset salvo como '{file_location}/boruta/{file_name}_boruta_prego_rfr.csv'.")
 
 
 if __name__ == "__main__":
