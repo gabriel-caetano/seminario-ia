@@ -1,9 +1,9 @@
 {
-    "timestamp": "2026-02-02T11:52:28.447018",
+    "timestamp": "2026-02-05T13:32:04.895096",
     "dataset": {
-        "train_size": 154,
-        "val_size": 52,
-        "test_size": 52
+        "train_size": 125,
+        "val_size": 42,
+        "test_size": 42
     },
     "model_config": {
         "hidden_layers": [
@@ -26,17 +26,17 @@
     },
     "training": {},
     "calibration": {
-        "temperature": 0.9705857038497925,
-        "best_threshold": 0.8318181818181818,
-        "best_f1_val": 0.967741935483871
+        "temperature": 0.9451677799224854,
+        "best_threshold": 0.8772727272727273,
+        "best_f1_val": 0.9629629629629629
     },
     "test_metrics": {
-        "accuracy": 0.8653846153846154,
+        "accuracy": 0.7619047619047619,
         "precision": 1.0,
-        "recall": 0.5882352941176471,
-        "f1_score": 0.7407407407407407,
-        "auc_roc": 0.9764705896377563,
-        "brier": 0.06646345821843755,
-        "ece": 0.08506562727360198
+        "recall": 0.6428571428571429,
+        "f1_score": 0.782608695652174,
+        "auc_roc": 0.9221938848495483,
+        "brier": 0.11082204167894372,
+        "ece": 0.16661018266209532
     }
 }

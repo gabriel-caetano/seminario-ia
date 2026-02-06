@@ -3,11 +3,10 @@ import json
 from datetime import datetime
 
 import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import regularizers
-from tensorflow.keras.callbacks import EarlyStopping, CSVLogger
+from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -21,10 +20,7 @@ DROPOUTS = [0.2, 0.2, 0.2, 0.2, 0.2]
 LEARNING_RATE = 3e-5
 WEIGHT_DECAY = 0.0
 ACTIVATION = "relu"
-
-MIN_RECALL_TARGET = 0.6
 THRESHOLD_STEPS = 100
-
 PROTEINURIA_LOSS_WEIGHT = 0.2
 
 def compute_ece(y_true, y_prob, n_bins=10):
@@ -41,7 +37,6 @@ def compute_ece(y_true, y_prob, n_bins=10):
             bin_acc = y_true[mask].mean()
             bin_conf = y_prob[mask].mean()
             ece += abs(bin_conf - bin_acc) * mask.sum() / len(y_true)
-
     return ece
 
 class MultiTaskMLP:
@@ -56,135 +51,42 @@ class MultiTaskMLP:
                 kernel_regularizer=regularizers.l2(1e-4),
                 name=f"hidden_{idx+1}",
             )(x)
-            x = keras.layers.Dropout(
-                DROPOUTS[idx],
-                name=f"dropout_{idx+1}",
-            )(x)
+            x = keras.layers.Dropout(DROPOUTS[idx], name=f"dropout_{idx+1}")(x)
 
-        prog_output = keras.layers.Dense(
-            1, activation="sigmoid", name="prog"
-        )(x)
+        prog_output = keras.layers.Dense(1, activation="sigmoid", name="prog")(x)
+        proteinuria_output = keras.layers.Dense(1, activation="sigmoid", name="proteinuria")(x)
 
-        proteinuria_output = keras.layers.Dense(
-            1, activation="sigmoid", name="proteinuria"
-        )(x)
-
-        self.model = keras.Model(
-            inputs=inputs,
-            outputs={
-                "prog": prog_output,
-                "proteinuria": proteinuria_output,
-            },
-        )
-
+        self.model = keras.Model(inputs=inputs, outputs={"prog": prog_output, "proteinuria": proteinuria_output})
         self.temperature = tf.Variable(1.0, dtype=tf.float32, trainable=True)
-
-        self.compile()
         self.history = None
+        self.compile()
 
     def summary(self):
         self.model.summary()
 
     def compile(self):
         self.model.compile(
-            optimizer=keras.optimizers.AdamW(
-                learning_rate=LEARNING_RATE,
-                weight_decay=WEIGHT_DECAY,
-            ),
-            loss={
-                "prog": "binary_crossentropy",
-                "proteinuria": "binary_crossentropy",
-            },
-            loss_weights={
-                "prog": 1.0,
-                "proteinuria": PROTEINURIA_LOSS_WEIGHT,
-            },
-            metrics={
-                "prog": [keras.metrics.AUC(name="auc")],
-                "proteinuria": [keras.metrics.AUC(name="auc")],
-            },
+            optimizer=keras.optimizers.AdamW(learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
+            loss={"prog": "binary_crossentropy", "proteinuria": "binary_crossentropy"},
+            loss_weights={"prog": 1.0, "proteinuria": PROTEINURIA_LOSS_WEIGHT},
+            metrics={"prog": [keras.metrics.AUC(name="auc")], "proteinuria": [keras.metrics.AUC(name="auc")]}
         )
 
     def train(self, dataset, epochs=2000, batch_size=32, verbose=1, name="run"):
         os.makedirs("logs", exist_ok=True)
-        os.makedirs("plot", exist_ok=True)
-
-        early_stopping = EarlyStopping(
-            monitor="val_prog_auc",
-            mode="max",
-            patience=15,
-            restore_best_weights=True,
-        )
-
-        csv_logger = CSVLogger(
-            f"logs/{name}_training_log.csv",
-            append=False,
-        )
+        early_stopping = EarlyStopping(monitor="val_prog_auc", mode="max", patience=15, restore_best_weights=True)
 
         history = self.model.fit(
             dataset.features_train,
-            {
-                "prog": dataset.target_train,
-                "proteinuria": dataset.proteinuria_train,
-            },
-            validation_data=(
-                dataset.features_validation,
-                {
-                    "prog": dataset.target_validation,
-                    "proteinuria": dataset.proteinuria_validation,
-                },
-            ),
+            {"prog": dataset.target_train, "proteinuria": dataset.proteinuria_train},
+            validation_data=(dataset.features_validation, {"prog": dataset.target_validation, "proteinuria": dataset.proteinuria_validation}),
             epochs=epochs,
             batch_size=batch_size,
-            callbacks=[early_stopping, csv_logger],
+            callbacks=[early_stopping],
             verbose=verbose,
         )
-
         self.history = history.history
-        self.plot_training_curves(name)
-
         return history.history
-
-    def plot_training_curves(self, name):
-        import matplotlib.pyplot as plt
-
-        os.makedirs("plots", exist_ok=True) 
-
-        history = self.history
-
-        plt.figure(figsize=(12, 5))
-
-        plt.subplot(1, 2, 1)
-        plt.plot(history["loss"], label="Train Loss")
-        plt.plot(history["val_loss"], label="Val Loss")
-
-        if "prog_loss" in history:
-            plt.plot(history["prog_loss"], label="Train Prog Loss", linestyle="--")
-            plt.plot(history["val_prog_loss"], label="Val Prog Loss", linestyle="--")
-
-        if "proteinuria_loss" in history:
-            plt.plot(history["proteinuria_loss"], label="Train Proteinuria Loss", linestyle=":")
-            plt.plot(history["val_proteinuria_loss"], label="Val Proteinuria Loss", linestyle=":")
-
-        plt.title("Training Loss")
-        plt.legend()
-
-        plt.subplot(1, 2, 2)
-
-        if "prog_auc" in history:
-            plt.plot(history["prog_auc"], label="Train Prog AUC")
-            plt.plot(history["val_prog_auc"], label="Val Prog AUC")
-
-        if "proteinuria_auc" in history:
-            plt.plot(history["proteinuria_auc"], label="Train Proteinuria AUC")
-            plt.plot(history["val_proteinuria_auc"], label="Val Proteinuria AUC")
-
-        plt.title("Training AUC")
-        plt.legend()
-
-        plt.tight_layout()
-        plt.savefig(f"plots/{name}_training_curves.png")
-        plt.close()
 
     @staticmethod
     def probs_to_logits_tf(probs, eps=1e-6):
@@ -194,37 +96,37 @@ class MultiTaskMLP:
     def fit_temperature(self, probs, y_true, lr=0.01, epochs=300):
         probs = tf.convert_to_tensor(probs, dtype=tf.float32)
         y_true = tf.convert_to_tensor(y_true, dtype=tf.float32)
-
         logits = self.probs_to_logits_tf(probs)
         optimizer = tf.keras.optimizers.Adam(lr)
 
         for _ in range(epochs):
             with tf.GradientTape() as tape:
                 scaled_logits = logits / self.temperature
-                loss = tf.reduce_mean(
-                    tf.keras.losses.binary_crossentropy(
-                        y_true, tf.sigmoid(scaled_logits)
-                    )
-                )
+                loss = tf.reduce_mean(tf.keras.losses.binary_crossentropy(y_true, tf.sigmoid(scaled_logits)))
             grads = tape.gradient(loss, [self.temperature])
             optimizer.apply_gradients(zip(grads, [self.temperature]))
+        print(f"[INFO] Melhor temperature: {self.temperature.numpy():.3f}")
 
-        print(f"[INFO] Temperature ótima: {self.temperature.numpy():.3f}")
-
-    def find_best_threshold(self, y_true, y_prob):
+    def find_best_threshold(self, y_true, y_prob, min_recall_target=0.5):
         thresholds = np.linspace(0.05, 0.95, THRESHOLD_STEPS)
-        best_t, best_f1 = 0.5, -1
+        best_score = -1  
+        best_t = 0.5
+        best_f1 = 0.0
 
         for t in thresholds:
             y_pred = (y_prob >= t).astype(int)
             r = recall_score(y_true, y_pred, zero_division=0)
+            p = precision_score(y_true, y_pred, zero_division=0)
 
-            if r < MIN_RECALL_TARGET:
+            if r < min_recall_target:
                 continue
 
-            f1 = f1_score(y_true, y_pred, zero_division=0)
-            if f1 > best_f1:
-                best_f1, best_t = f1, t
+            score = f1_score(y_true, y_pred, zero_division=0) - 0.1 * abs(p - r)
+
+            if score > best_score:
+                best_score = score
+                best_t = t
+                best_f1 = f1_score(y_true, y_pred, zero_division=0)
 
         return best_t, best_f1
 
@@ -232,42 +134,23 @@ class MultiTaskMLP:
     def _predict_step(self, inputs):
         return self.model(inputs, training=False)
 
-    def predict_all(self, dataset):
+    def predict_all(self, dataset, min_recall_target=0.5):
         val_outputs = self._predict_step(dataset.features_validation)
         val_probs = tf.reshape(val_outputs["prog"], [-1])
-
-        y_val = tf.convert_to_tensor(
-            np.asarray(dataset.target_validation).ravel(),
-            dtype=tf.float32,
-        )
+        y_val = tf.convert_to_tensor(np.asarray(dataset.target_validation).ravel(), dtype=tf.float32)
 
         self.fit_temperature(val_probs, y_val)
+        val_probs_cal = tf.sigmoid(self.probs_to_logits_tf(val_probs) / self.temperature).numpy()
 
-        val_probs_cal = tf.sigmoid(
-            self.probs_to_logits_tf(val_probs) / self.temperature
-        ).numpy()
-
-        best_t, best_f1 = self.find_best_threshold(
-            y_val.numpy(), val_probs_cal
-        )
-
-        print(
-            f"[INFO] Melhor threshold: {best_t:.3f} | F1: {best_f1:.3f}"
-        )
+        best_t, best_f1 = self.find_best_threshold(y_val.numpy(), val_probs_cal, min_recall_target=min_recall_target)
+        print(f"[INFO] Melhor threshold: {best_t:.3f} | F1: {best_f1:.3f}")
 
         test_outputs = self._predict_step(dataset.features_test)
         test_probs = tf.reshape(test_outputs["prog"], [-1])
-
-        test_probs_cal = tf.sigmoid(
-            self.probs_to_logits_tf(test_probs) / self.temperature
-        ).numpy()
-
+        test_probs_cal = tf.sigmoid(self.probs_to_logits_tf(test_probs) / self.temperature).numpy()
         y_pred = (test_probs_cal >= best_t).astype(int)
         y_true = np.asarray(dataset.target_test).ravel()
-
-        auc = float(
-            tf.keras.metrics.AUC()(y_true, test_probs_cal).numpy()
-        )
+        auc = float(tf.keras.metrics.AUC()(y_true, test_probs_cal).numpy())
 
         results = {
             "prog": {
@@ -287,7 +170,6 @@ class MultiTaskMLP:
         }
 
         self.save_log_geral(dataset, results)
-
         return results
 
     def save_log_geral(self, dataset, results, filename="log_geral.json"):

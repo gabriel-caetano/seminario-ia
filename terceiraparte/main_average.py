@@ -113,13 +113,13 @@ if __name__ == "__main__":
     print("\n--- Experimento multi-task 10 execuções ---")
 
     dataset_source = MultiTaskDataset(
-        file_name='datasets/stage/dataset_stage234.csv',
+        file_name='datasets/age/dataset_idosos.csv',
         target_prog='CKD progression',
         target_proteinuria='proteinuria'
     )
 
     dataset_target = MultiTaskDataset(
-        file_name='datasets/stage/dataset_stage5.csv',
+        file_name='datasets/age/dataset_adultos.csv',
         target_prog='CKD progression',
         target_proteinuria='proteinuria'
     )
