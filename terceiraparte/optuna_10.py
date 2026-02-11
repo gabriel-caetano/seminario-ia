@@ -9,18 +9,20 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.calibration import calibration_curve
 
 
-from multitask_mlp import MultiTaskMLP, HIDDEN_LAYERS, DROPOUTS, LEARNING_RATE, WEIGHT_DECAY, compute_ece
+from multitask_mlp import MultiTaskMLP, compute_ece
 from multitask_dataset import MultiTaskDataset
 
 SOURCE_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_idosos.csv"
 TARGET_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_adultos.csv"
 
 N_TRIALS = 100
-EPOCHS_PRETRAIN = 200
-EPOCHS_FINE_TUNE = 200
-EPOCHS_FINAL = 200
+EPOCHS_PRETRAIN = 2000
+EPOCHS_FINE_TUNE = 2000
+EPOCHS_FINAL = 2000
 BATCH_SIZE = 32
 N_RUNS_FINAL = 40
+
+#batchsize - 8/64
 
 
 def sample_hidden_layers(
@@ -31,7 +33,7 @@ def sample_hidden_layers(
     min_neurons=16
 ):
     if first_layer_choices is None:
-        first_layer_choices = [32, 64, 128]
+        first_layer_choices = [8, 16, 32, 64, 128, 256]
 
     n_layers = trial.suggest_int("n_layers", 2, max_layers)
     layer_1 = trial.suggest_categorical("layer_1", first_layer_choices)
@@ -69,13 +71,13 @@ def objective(trial, source_dataset, target_dataset):
     learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
     weight_decay = trial.suggest_loguniform("weight_decay", 1e-6, 1e-2)
 
-    global HIDDEN_LAYERS, DROPOUTS, LEARNING_RATE, WEIGHT_DECAY
-    HIDDEN_LAYERS[:] = hidden_layers
-    DROPOUTS[:] = dropouts
-    LEARNING_RATE = learning_rate
-    WEIGHT_DECAY = weight_decay
-
-    model = MultiTaskMLP(shape=source_dataset.features_train.shape[1])
+    model = MultiTaskMLP(
+        shape=source_dataset.features_train.shape[1],
+        hidden_layers=hidden_layers,
+        dropouts=dropouts,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+    )
     model.train(source_dataset, epochs=EPOCHS_PRETRAIN, batch_size=BATCH_SIZE, verbose=0,
                 name=f"trial_{trial.number}_pretrain")
     model.train(target_dataset, epochs=EPOCHS_FINE_TUNE, batch_size=BATCH_SIZE, verbose=0,
@@ -121,15 +123,6 @@ if __name__ == "__main__":
     print("===================================================")
 
     best_params = study.best_params
-    HIDDEN_LAYERS[:] = study.best_trial.user_attrs["hidden_layers"]
-    n_layers = len(HIDDEN_LAYERS)
-
-    DROPOUTS[:] = [
-        best_params[f"dropout_l{i+1}"]
-        for i in range(n_layers)
-    ]
-    LEARNING_RATE = best_params["learning_rate"]
-    WEIGHT_DECAY = best_params["weight_decay"]
 
     metrics_baseline = []
     metrics_finetuned = []
@@ -137,8 +130,16 @@ if __name__ == "__main__":
     for run in range(N_RUNS_FINAL):
         print(f"[INFO] Run final {run+1}/{N_RUNS_FINAL}")
 
-        # Baseline: treinar apenas no target
-        model_base = MultiTaskMLP(shape=target_dataset.features_train.shape[1])
+        model_base = MultiTaskMLP(
+            shape=target_dataset.features_train.shape[1],
+            hidden_layers=study.best_trial.user_attrs["hidden_layers"],
+            dropouts=[
+                best_params[f"dropout_l{i+1}"]
+                for i in range(len(study.best_trial.user_attrs["hidden_layers"]))
+            ],
+            learning_rate=best_params["learning_rate"],
+            weight_decay=best_params["weight_decay"],
+        )
         model_base.train(target_dataset, epochs=EPOCHS_FINAL, batch_size=BATCH_SIZE, verbose=0,
                          name=f"baseline_run{run}")
 
@@ -166,8 +167,16 @@ if __name__ == "__main__":
             "ece": compute_ece(y_true, test_probs)
         })
 
-        # Fine-tuned target: pré-treino no source + fine-tune
-        model_ft = MultiTaskMLP(shape=target_dataset.features_train.shape[1])
+        model_ft = MultiTaskMLP(
+            shape=target_dataset.features_train.shape[1],
+            hidden_layers=study.best_trial.user_attrs["hidden_layers"],
+            dropouts=[
+                best_params[f"dropout_l{i+1}"]
+                for i in range(len(study.best_trial.user_attrs["hidden_layers"]))
+            ],
+            learning_rate=best_params["learning_rate"],
+            weight_decay=best_params["weight_decay"],
+        )
         model_ft.train(source_dataset, epochs=EPOCHS_PRETRAIN, batch_size=BATCH_SIZE, verbose=0,
                        name=f"finetuned_pretrain_run{run}")
         model_ft.train(target_dataset, epochs=EPOCHS_FINAL, batch_size=BATCH_SIZE, verbose=0,
@@ -195,7 +204,6 @@ if __name__ == "__main__":
             "ece": compute_ece(y_true, test_probs)
         })
 
-    # calcular médias
     avg_baseline = {k: np.mean([m[k] for m in metrics_baseline])
                     for k in metrics_baseline[0]}
     avg_finetuned = {k: np.mean([m[k] for m in metrics_finetuned])
@@ -236,69 +244,86 @@ if __name__ == "__main__":
 
     plt.figure(figsize=(8, 6))
 
-    test_probs_base = np.reshape(model_base._predict_step(
-        target_dataset.features_test)["prog"], [-1])
-    y_pred_base = (test_probs_base >= best_threshold).astype(int)
+    tpr_baseline_runs = []
+    tpr_ft_runs = []
+    probs_base_runs = []
+    probs_ft_runs = []
+    fpr_common = np.linspace(0, 1, 100)  
 
-    test_probs_ft = np.reshape(model_ft._predict_step(
-        target_dataset.features_test)["prog"], [-1])
-    y_pred_ft = (test_probs_ft >= best_threshold).astype(int)
+    for run_idx in range(N_RUNS_FINAL):
+        probs_base = metrics_baseline[run_idx]["probs"] 
+        probs_base_runs.append(probs_base)
+        fpr_base, tpr_base, _ = roc_curve(y_true, probs_base)
+        tpr_baseline_runs.append(np.interp(fpr_common, fpr_base, tpr_base))
+
+        probs_ft = metrics_finetuned[run_idx]["probs"]
+        probs_ft_runs.append(probs_ft)
+        fpr_ft, tpr_ft, _ = roc_curve(y_true, probs_ft)
+        tpr_ft_runs.append(np.interp(fpr_common, fpr_ft, tpr_ft))
+
+    tpr_base_mean = np.mean(tpr_baseline_runs, axis=0)
+    tpr_ft_mean = np.mean(tpr_ft_runs, axis=0)
+
+    tpr_base_mean = np.mean(tpr_baseline_runs, axis=0)
+    tpr_ft_mean = np.mean(tpr_ft_runs, axis=0)
+
+    roc_auc_base = auc(fpr_common, tpr_base_mean)
+    roc_auc_ft = auc(fpr_common, tpr_ft_mean)
 
     plt.plot([0, 1], [0, 1], 'k--', label="Random")
-
-    fpr_base, tpr_base, _ = roc_curve(y_true, test_probs_base)
-    roc_auc_base = auc(fpr_base, tpr_base)
-    plt.plot(fpr_base, tpr_base, label=f'Baseline (AUC = {roc_auc_base:.2f})')
-
-    fpr_ft, tpr_ft, _ = roc_curve(y_true, test_probs_ft)
-    roc_auc_ft = auc(fpr_ft, tpr_ft)
-    plt.plot(fpr_ft, tpr_ft, label=f'Fine-tuned (AUC = {roc_auc_ft:.2f})')
+    plt.plot(fpr_common, tpr_base_mean,
+             label=f'Baseline (AUC = {roc_auc_base:.2f})')
+    plt.plot(fpr_common, tpr_ft_mean,
+             label=f'Fine-tuned (AUC = {roc_auc_ft:.2f})')
 
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
+    plt.title('ROC Curve Média')
     plt.legend(loc='lower right')
+    plt.grid(True)
 
-    # Salvar gráfico
-    roc_file = "roc_curve.png"
-    plt.savefig(roc_file, dpi=300)
+    plt.savefig("roc_curve_media.png", dpi=300)
     plt.close()
-    print(f"[INFO] Curva ROC salva em {roc_file}")
+    print(f"[INFO] Curva ROC média salva em roc_curve_media.png")
 
     plt.figure(figsize=(8, 6))
 
+    probs_base_mean = np.mean([tf.reshape(model_base._predict_step(target_dataset.features_test)["prog"], [-1]).numpy()
+                               for _ in range(N_RUNS_FINAL)], axis=0)
+    probs_ft_mean = np.mean([tf.reshape(model_ft._predict_step(target_dataset.features_test)["prog"], [-1]).numpy()
+                             for _ in range(N_RUNS_FINAL)], axis=0)
+
     prob_true_base, prob_pred_base = calibration_curve(
-        y_true, test_probs_base, n_bins=15, strategy="quantile"
+        y_true, probs_base_mean, n_bins=15, strategy="quantile"
     )
-
     prob_true_ft, prob_pred_ft = calibration_curve(
-        y_true, test_probs_ft, n_bins=15, strategy="quantile"
+        y_true, probs_ft_mean, n_bins=15, strategy="quantile"
     )
 
-    plt.plot([0, 1], [0, 1], "k--", label="Perfect calibration")
+plt.plot([0, 1], [0, 1], "k--", label="Perfect calibration")
 
-    plt.plot(
-        prob_pred_base,
-        prob_true_base,
-        marker="o",
-        label=f"Baseline (Brier = {avg_baseline['brier']:.3f})"
-    )
+plt.plot(
+    prob_pred_base,
+    prob_true_base,
+    marker="o",
+    label=f"Baseline (Brier = {avg_baseline['brier']:.3f})"
+)
 
-    plt.plot(
-        prob_pred_ft,
-        prob_true_ft,
-        marker="o",
-        label=f"Fine-tuned (Brier = {avg_finetuned['brier']:.3f})"
-    )
+plt.plot(
+    prob_pred_ft,
+    prob_true_ft,
+    marker="o",
+    label=f"Fine-tuned (Brier = {avg_finetuned['brier']:.3f})"
+)
 
-    plt.xlabel("Mean predicted probability")
-    plt.ylabel("Fraction of positives")
-    plt.title("Calibration Curve (Brier Score)")
-    plt.legend(loc="upper left")
-    plt.grid(True)
+plt.xlabel("Mean predicted probability")
+plt.ylabel("Fraction of positives")
+plt.title("Calibration Curve (Brier Score)")
+plt.legend(loc="upper left")
+plt.grid(True)
 
-    calibration_file = "brier_calibration_curve.png"
-    plt.savefig(calibration_file, dpi=300)
-    plt.close()
+calibration_file = "brier_calibration_curve.png"
+plt.savefig(calibration_file, dpi=300)
+plt.close()
 
-    print(f"[INFO] Curva de calibração (Brier) salva em {calibration_file}")
+print(f"[INFO] Curva de calibração (Brier) salva em {calibration_file}")
