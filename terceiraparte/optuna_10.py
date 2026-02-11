@@ -12,15 +12,16 @@ from sklearn.calibration import calibration_curve
 from multitask_mlp import MultiTaskMLP, HIDDEN_LAYERS, DROPOUTS, LEARNING_RATE, WEIGHT_DECAY, compute_ece
 from multitask_dataset import MultiTaskDataset
 
-SOURCE_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_adultos.csv"
-TARGET_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_idosos.csv"
+SOURCE_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_idosos.csv"
+TARGET_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_adultos.csv"
 
-N_TRIALS = 400
-EPOCHS_PRETRAIN = 50
-EPOCHS_FINE_TUNE = 50
+N_TRIALS = 100
+EPOCHS_PRETRAIN = 200
+EPOCHS_FINE_TUNE = 200
 EPOCHS_FINAL = 200
 BATCH_SIZE = 32
-N_RUNS_FINAL = 40  # quantidade de runs para média
+N_RUNS_FINAL = 40
+
 
 def sample_hidden_layers(
     trial,
@@ -30,7 +31,7 @@ def sample_hidden_layers(
     min_neurons=16
 ):
     if first_layer_choices is None:
-        first_layer_choices = [32, 64, 128, 256]
+        first_layer_choices = [32, 64, 128]
 
     n_layers = trial.suggest_int("n_layers", 2, max_layers)
     layer_1 = trial.suggest_categorical("layer_1", first_layer_choices)
@@ -67,7 +68,6 @@ def objective(trial, source_dataset, target_dataset):
 
     learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
     weight_decay = trial.suggest_loguniform("weight_decay", 1e-6, 1e-2)
-    min_recall_target = trial.suggest_float("min_recall_target", 0.3, 0.8)
 
     global HIDDEN_LAYERS, DROPOUTS, LEARNING_RATE, WEIGHT_DECAY
     HIDDEN_LAYERS[:] = hidden_layers
@@ -85,13 +85,21 @@ def objective(trial, source_dataset, target_dataset):
     val_probs = tf.reshape(val_outputs["prog"], [-1]).numpy()
     y_val = np.asarray(target_dataset.target_validation).ravel()
 
-    best_t, best_f1 = model.find_best_threshold(
-        y_val, val_probs, min_recall_target=min_recall_target)
+    best_t, best_f1 = model.find_best_threshold(y_val, val_probs)
 
     trial.set_user_attr("best_threshold", best_t)
-    trial.set_user_attr("min_recall_target", min_recall_target)
 
-    return best_f1
+    y_pred = (val_probs >= best_t).astype(int)
+
+    macro_f1 = f1_score(
+        y_val,
+        y_pred,
+        average="macro",
+        zero_division=0
+    )
+
+    return macro_f1
+
 
 if __name__ == "__main__":
     source_dataset = MultiTaskDataset(SOURCE_PATH)
@@ -108,11 +116,8 @@ if __name__ == "__main__":
     for k, v in study.best_params.items():
         print(f"{k}: {v}")
     best_threshold = study.best_trial.user_attrs.get("best_threshold", 0.5)
-    min_recall_target = study.best_trial.user_attrs.get(
-        "min_recall_target", 0.5)
     print(f"Melhor F1 no conjunto de validação: {study.best_value:.4f}")
     print(f"Melhor threshold encontrado: {best_threshold:.3f}")
-    print(f"Min recall target usado: {min_recall_target:.2f}")
     print("===================================================")
 
     best_params = study.best_params
@@ -142,7 +147,7 @@ if __name__ == "__main__":
         val_probs = tf.reshape(val_outputs["prog"], [-1]).numpy()
         y_val = np.asarray(target_dataset.target_validation).ravel()
         best_t, _ = model_base.find_best_threshold(
-            y_val, val_probs, min_recall_target=min_recall_target)
+            y_val, val_probs)
 
         test_outputs = model_base._predict_step(target_dataset.features_test)
         test_probs = tf.reshape(test_outputs["prog"], [-1]).numpy()
@@ -151,9 +156,11 @@ if __name__ == "__main__":
 
         metrics_baseline.append({
             "accuracy": accuracy_score(y_true, y_pred),
-            "precision": precision_score(y_true, y_pred, zero_division=0),
-            "recall": recall_score(y_true, y_pred, zero_division=0),
-            "f1_score": f1_score(y_true, y_pred, zero_division=0),
+            "precision_macro": precision_score(y_true, y_pred, average="macro", zero_division=0),
+            "recall_macro": recall_score(y_true, y_pred, average="macro", zero_division=0),
+            "f1_macro": f1_score(y_true, y_pred, average="macro", zero_division=0),
+            "f1_class_0": f1_score(y_true, y_pred, pos_label=0, zero_division=0),
+            "f1_class_1": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
             "auc_roc": roc_auc_score(y_true, test_probs),
             "brier": brier_score_loss(y_true, test_probs),
             "ece": compute_ece(y_true, test_probs)
@@ -170,7 +177,7 @@ if __name__ == "__main__":
             target_dataset.features_validation)
         val_probs = tf.reshape(val_outputs["prog"], [-1]).numpy()
         best_t, _ = model_ft.find_best_threshold(
-            y_val, val_probs, min_recall_target=min_recall_target)
+            y_val, val_probs)
 
         test_outputs = model_ft._predict_step(target_dataset.features_test)
         test_probs = tf.reshape(test_outputs["prog"], [-1]).numpy()
@@ -178,9 +185,11 @@ if __name__ == "__main__":
 
         metrics_finetuned.append({
             "accuracy": accuracy_score(y_true, y_pred),
-            "precision": precision_score(y_true, y_pred, zero_division=0),
-            "recall": recall_score(y_true, y_pred, zero_division=0),
-            "f1_score": f1_score(y_true, y_pred, zero_division=0),
+            "precision_macro": precision_score(y_true, y_pred, average="macro", zero_division=0),
+            "recall_macro": recall_score(y_true, y_pred, average="macro", zero_division=0),
+            "f1_macro": f1_score(y_true, y_pred, average="macro", zero_division=0),
+            "f1_class_0": f1_score(y_true, y_pred, pos_label=0, zero_division=0),
+            "f1_class_1": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
             "auc_roc": roc_auc_score(y_true, test_probs),
             "brier": brier_score_loss(y_true, test_probs),
             "ece": compute_ece(y_true, test_probs)
@@ -195,17 +204,27 @@ if __name__ == "__main__":
     print("===================================================")
     print("Resultados médios finais (10 runs):")
     print("scenario,accuracy,precision,recall,f1_score,auc_roc,brier,ece")
-    print(f"baseline,{avg_baseline['accuracy']:.4f},{avg_baseline['precision']:.4f},"
-          f"{avg_baseline['recall']:.4f},{avg_baseline['f1_score']:.4f},{avg_baseline['auc_roc']:.4f},"
+    print(f"baseline,{avg_baseline['accuracy']:.4f},{avg_baseline['precision_macro']:.4f},"
+          f"{avg_baseline['recall_macro']:.4f},{avg_baseline['f1_macro']:.4f},{avg_baseline['auc_roc']:.4f},"
           f"{avg_baseline['brier']:.4f},{avg_baseline['ece']:.4f}")
-    print(f"fine_tuned_target,{avg_finetuned['accuracy']:.4f},{avg_finetuned['precision']:.4f},"
-          f"{avg_finetuned['recall']:.4f},{avg_finetuned['f1_score']:.4f},{avg_finetuned['auc_roc']:.4f},"
+    print(f"fine_tuned_target,{avg_finetuned['accuracy']:.4f},{avg_finetuned['precision_macro']:.4f},"
+          f"{avg_finetuned['recall_macro']:.4f},{avg_finetuned['f1_macro']:.4f},{avg_finetuned['auc_roc']:.4f},"
           f"{avg_finetuned['brier']:.4f},{avg_finetuned['ece']:.4f}")
     print("===================================================")
 
     csv_file = "mlp_results_avg.csv"
-    fieldnames = ["scenario", "accuracy", "precision",
-                  "recall", "f1_score", "auc_roc", "brier", "ece"]
+    fieldnames = [
+        "scenario",
+        "accuracy",
+        "precision_macro",
+        "recall_macro",
+        "f1_macro",
+        "f1_class_0",
+        "f1_class_1",
+        "auc_roc",
+        "brier",
+        "ece"
+    ]
 
     with open(csv_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -283,4 +302,3 @@ if __name__ == "__main__":
     plt.close()
 
     print(f"[INFO] Curva de calibração (Brier) salva em {calibration_file}")
-

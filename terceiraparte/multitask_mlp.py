@@ -23,6 +23,7 @@ ACTIVATION = "relu"
 THRESHOLD_STEPS = 100
 PROTEINURIA_LOSS_WEIGHT = 0.2
 
+
 def compute_ece(y_true, y_prob, n_bins=10):
     y_true = np.asarray(y_true)
     y_prob = np.asarray(y_prob)
@@ -39,6 +40,7 @@ def compute_ece(y_true, y_prob, n_bins=10):
             ece += abs(bin_conf - bin_acc) * mask.sum() / len(y_true)
     return ece
 
+
 class MultiTaskMLP:
     def __init__(self, shape):
         inputs = keras.layers.Input(shape=(shape,))
@@ -53,10 +55,13 @@ class MultiTaskMLP:
             )(x)
             x = keras.layers.Dropout(DROPOUTS[idx], name=f"dropout_{idx+1}")(x)
 
-        prog_output = keras.layers.Dense(1, activation="sigmoid", name="prog")(x)
-        proteinuria_output = keras.layers.Dense(1, activation="sigmoid", name="proteinuria")(x)
+        prog_output = keras.layers.Dense(
+            1, activation="sigmoid", name="prog")(x)
+        proteinuria_output = keras.layers.Dense(
+            1, activation="sigmoid", name="proteinuria")(x)
 
-        self.model = keras.Model(inputs=inputs, outputs={"prog": prog_output, "proteinuria": proteinuria_output})
+        self.model = keras.Model(inputs=inputs, outputs={
+                                 "prog": prog_output, "proteinuria": proteinuria_output})
         self.temperature = tf.Variable(1.0, dtype=tf.float32, trainable=True)
         self.history = None
         self.compile()
@@ -66,20 +71,25 @@ class MultiTaskMLP:
 
     def compile(self):
         self.model.compile(
-            optimizer=keras.optimizers.AdamW(learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
-            loss={"prog": "binary_crossentropy", "proteinuria": "binary_crossentropy"},
+            optimizer=keras.optimizers.AdamW(
+                learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
+            loss={"prog": "binary_crossentropy",
+                  "proteinuria": "binary_crossentropy"},
             loss_weights={"prog": 1.0, "proteinuria": PROTEINURIA_LOSS_WEIGHT},
-            metrics={"prog": [keras.metrics.AUC(name="auc")], "proteinuria": [keras.metrics.AUC(name="auc")]}
+            metrics={"prog": [keras.metrics.AUC(name="auc")], "proteinuria": [
+                keras.metrics.AUC(name="auc")]}
         )
 
     def train(self, dataset, epochs=2000, batch_size=32, verbose=1, name="run"):
         os.makedirs("logs", exist_ok=True)
-        early_stopping = EarlyStopping(monitor="val_prog_auc", mode="max", patience=15, restore_best_weights=True)
+        early_stopping = EarlyStopping(
+            monitor="val_prog_auc", mode="max", patience=15, restore_best_weights=True)
 
         history = self.model.fit(
             dataset.features_train,
             {"prog": dataset.target_train, "proteinuria": dataset.proteinuria_train},
-            validation_data=(dataset.features_validation, {"prog": dataset.target_validation, "proteinuria": dataset.proteinuria_validation}),
+            validation_data=(dataset.features_validation, {
+                             "prog": dataset.target_validation, "proteinuria": dataset.proteinuria_validation}),
             epochs=epochs,
             batch_size=batch_size,
             callbacks=[early_stopping],
@@ -102,52 +112,56 @@ class MultiTaskMLP:
         for _ in range(epochs):
             with tf.GradientTape() as tape:
                 scaled_logits = logits / self.temperature
-                loss = tf.reduce_mean(tf.keras.losses.binary_crossentropy(y_true, tf.sigmoid(scaled_logits)))
+                loss = tf.reduce_mean(tf.keras.losses.binary_crossentropy(
+                    y_true, tf.sigmoid(scaled_logits)))
             grads = tape.gradient(loss, [self.temperature])
             optimizer.apply_gradients(zip(grads, [self.temperature]))
         print(f"[INFO] Melhor temperature: {self.temperature.numpy():.3f}")
 
-    def find_best_threshold(self, y_true, y_prob, min_recall_target=0.5):
+    def find_best_threshold(self, y_true, y_prob):
         thresholds = np.linspace(0.05, 0.95, THRESHOLD_STEPS)
-        best_score = -1  
+        best_score = -np.inf
         best_t = 0.5
-        best_f1 = 0.0
 
         for t in thresholds:
             y_pred = (y_prob >= t).astype(int)
-            r = recall_score(y_true, y_pred, zero_division=0)
-            p = precision_score(y_true, y_pred, zero_division=0)
 
-            if r < min_recall_target:
-                continue
-
-            score = f1_score(y_true, y_pred, zero_division=0) - 0.1 * abs(p - r)
+            score = f1_score(
+                y_true,
+                y_pred,
+                average="macro",
+                zero_division=0
+            )
 
             if score > best_score:
                 best_score = score
                 best_t = t
-                best_f1 = f1_score(y_true, y_pred, zero_division=0)
 
-        return best_t, best_f1
+        return best_t, best_score
 
     @tf.function(reduce_retracing=True)
     def _predict_step(self, inputs):
         return self.model(inputs, training=False)
 
-    def predict_all(self, dataset, min_recall_target=0.5):
+    def predict_all(self, dataset):
         val_outputs = self._predict_step(dataset.features_validation)
         val_probs = tf.reshape(val_outputs["prog"], [-1])
-        y_val = tf.convert_to_tensor(np.asarray(dataset.target_validation).ravel(), dtype=tf.float32)
+        y_val = tf.convert_to_tensor(np.asarray(
+            dataset.target_validation).ravel(), dtype=tf.float32)
 
         self.fit_temperature(val_probs, y_val)
-        val_probs_cal = tf.sigmoid(self.probs_to_logits_tf(val_probs) / self.temperature).numpy()
+        val_probs_cal = tf.sigmoid(self.probs_to_logits_tf(
+            val_probs) / self.temperature).numpy()
 
-        best_t, best_f1 = self.find_best_threshold(y_val.numpy(), val_probs_cal, min_recall_target=min_recall_target)
-        print(f"[INFO] Melhor threshold: {best_t:.3f} | F1: {best_f1:.3f}")
+        best_t, best_f1 = self.find_best_threshold(
+            y_val.numpy(),
+            val_probs_cal
+        )
 
         test_outputs = self._predict_step(dataset.features_test)
         test_probs = tf.reshape(test_outputs["prog"], [-1])
-        test_probs_cal = tf.sigmoid(self.probs_to_logits_tf(test_probs) / self.temperature).numpy()
+        test_probs_cal = tf.sigmoid(self.probs_to_logits_tf(
+            test_probs) / self.temperature).numpy()
         y_pred = (test_probs_cal >= best_t).astype(int)
         y_true = np.asarray(dataset.target_test).ravel()
         auc = float(tf.keras.metrics.AUC()(y_true, test_probs_cal).numpy())
@@ -155,9 +169,11 @@ class MultiTaskMLP:
         results = {
             "prog": {
                 "accuracy": accuracy_score(y_true, y_pred),
-                "precision": precision_score(y_true, y_pred, zero_division=0),
-                "recall": recall_score(y_true, y_pred, zero_division=0),
-                "f1_score": f1_score(y_true, y_pred, zero_division=0),
+                "precision_macro": precision_score(y_true, y_pred, average="macro", zero_division=0),
+                "recall_macro": recall_score(y_true, y_pred, average="macro", zero_division=0),
+                "f1_macro": f1_score(y_true, y_pred, average="macro", zero_division=0),
+                "f1_class_0": f1_score(y_true, y_pred, pos_label=0, zero_division=0),
+                "f1_class_1": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
                 "auc_roc": auc,
                 "brier": brier_score_loss(y_true, test_probs_cal),
                 "ece": compute_ece(y_true, test_probs_cal),
