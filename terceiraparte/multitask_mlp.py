@@ -42,18 +42,32 @@ def compute_ece(y_true, y_prob, n_bins=10):
 
 
 class MultiTaskMLP:
-    def __init__(self, shape):
+    def __init__(
+        self,
+        shape,
+        hidden_layers,
+        dropouts,
+        learning_rate,
+        weight_decay,
+        activation="relu",
+    ):
+        self.hidden_layers = hidden_layers
+        self.dropouts = dropouts
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.activation = activation
         inputs = keras.layers.Input(shape=(shape,))
         x = inputs
 
-        for idx, neurons in enumerate(HIDDEN_LAYERS):
+        for idx, neurons in enumerate(self.hidden_layers):
             x = keras.layers.Dense(
                 neurons,
-                activation=ACTIVATION,
-                kernel_regularizer=regularizers.l2(1e-4),
+                activation=self.activation,
+                kernel_regularizer=regularizers.l2(self.weight_decay),
                 name=f"hidden_{idx+1}",
             )(x)
-            x = keras.layers.Dropout(DROPOUTS[idx], name=f"dropout_{idx+1}")(x)
+        x = keras.layers.Dropout(
+            self.dropouts[idx], name=f"dropout_{idx+1}")(x) 
 
         prog_output = keras.layers.Dense(
             1, activation="sigmoid", name="prog")(x)
@@ -72,12 +86,14 @@ class MultiTaskMLP:
     def compile(self):
         self.model.compile(
             optimizer=keras.optimizers.AdamW(
-                learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
+                learning_rate=self.learning_rate,
+                weight_decay=self.weight_decay
+            ),
             loss={"prog": "binary_crossentropy",
                   "proteinuria": "binary_crossentropy"},
             loss_weights={"prog": 1.0, "proteinuria": PROTEINURIA_LOSS_WEIGHT},
-            metrics={"prog": [keras.metrics.AUC(name="auc")], "proteinuria": [
-                keras.metrics.AUC(name="auc")]}
+            metrics={"prog": [keras.metrics.AUC(name="auc")],
+                     "proteinuria": [keras.metrics.AUC(name="auc")]}
         )
 
     def train(self, dataset, epochs=2000, batch_size=32, verbose=1, name="run"):
@@ -197,11 +213,11 @@ class MultiTaskMLP:
                 "test_size": int(len(dataset.target_test)),
             },
             "model_config": {
-                "hidden_layers": HIDDEN_LAYERS,
-                "dropouts": DROPOUTS,
-                "learning_rate": LEARNING_RATE,
-                "weight_decay": WEIGHT_DECAY,
-                "activation": ACTIVATION,
+                "hidden_layers": self.hidden_layers,
+                "dropouts": self.dropouts,
+                "learning_rate": self.learning_rate,
+                "weight_decay": self.weight_decay,
+                "activation": self.activation,
             },
             "training": {},
             "calibration": results["debug"],
