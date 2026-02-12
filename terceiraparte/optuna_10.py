@@ -30,12 +30,12 @@ def sample_hidden_layers(
     *,
     max_layers=5,
     first_layer_choices=None,
-    min_neurons=16
+    min_neurons=4
 ):
     if first_layer_choices is None:
         first_layer_choices = [8, 16, 32, 64, 128, 256]
 
-    n_layers = trial.suggest_int("n_layers", 2, max_layers)
+    n_layers = trial.suggest_int("n_layers", 1, max_layers)
     layer_1 = trial.suggest_categorical("layer_1", first_layer_choices)
 
     layers = [int(layer_1)]
@@ -104,14 +104,14 @@ def objective(trial, source_dataset, target_dataset):
 
 
 if __name__ == "__main__":
-    source_dataset = MultiTaskDataset(SOURCE_PATH)
-    target_dataset = MultiTaskDataset(TARGET_PATH)
+    source_dataset = MultiTaskDataset("datasets_processed/age", "age_elderly")
+    target_dataset = MultiTaskDataset("datasets_processed/age", "age_adults")
     print("Source dataset:", source_dataset)
     print("Target dataset:", target_dataset)
 
     study = optuna.create_study(direction="maximize")
     study.optimize(lambda trial: objective(
-        trial, source_dataset, target_dataset), n_trials=N_TRIALS)
+        trial, source_dataset, target_dataset), n_trials=N_TRIALS, show_progress_bar=True)
 
     print("===================================================")
     print("Melhores parâmetros encontrados pelo Optuna:")
