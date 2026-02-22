@@ -12,18 +12,14 @@ from sklearn.calibration import calibration_curve
 from multitask_mlp import MultiTaskMLP, compute_ece
 from multitask_dataset import MultiTaskDataset
 
-SOURCE_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_idosos.csv"
-TARGET_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\age\dataset_adultos.csv"
+SOURCE_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\stage\dataset_stage234.csv"
+TARGET_PATH = r"C:\Users\rafae\seminario-ia\terceiraparte\datasets\stage\dataset_stage5.csv"
 
-N_TRIALS = 100
-EPOCHS_PRETRAIN = 2000
-EPOCHS_FINE_TUNE = 2000
-EPOCHS_FINAL = 2000
-BATCH_SIZE = 32
+N_TRIALS = 1000
+EPOCHS_PRETRAIN = 400
+EPOCHS_FINE_TUNE = 400
+EPOCHS_FINAL = 400
 N_RUNS_FINAL = 40
-
-#batchsize - 8/64
-
 
 def sample_hidden_layers(
     trial,
@@ -70,6 +66,7 @@ def objective(trial, source_dataset, target_dataset):
 
     learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
     weight_decay = trial.suggest_loguniform("weight_decay", 1e-6, 1e-2)
+    batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64])
 
     model = MultiTaskMLP(
         shape=source_dataset.features_train.shape[1],
@@ -78,9 +75,9 @@ def objective(trial, source_dataset, target_dataset):
         learning_rate=learning_rate,
         weight_decay=weight_decay,
     )
-    model.train(source_dataset, epochs=EPOCHS_PRETRAIN, batch_size=BATCH_SIZE, verbose=0,
+    model.train(source_dataset, epochs=EPOCHS_PRETRAIN, batch_size=batch_size, verbose=0,
                 name=f"trial_{trial.number}_pretrain")
-    model.train(target_dataset, epochs=EPOCHS_FINE_TUNE, batch_size=BATCH_SIZE, verbose=0,
+    model.train(target_dataset, epochs=EPOCHS_FINE_TUNE, batch_size=batch_size, verbose=0,
                 name=f"trial_{trial.number}_finetune")
 
     val_outputs = model._predict_step(target_dataset.features_validation)
@@ -123,6 +120,7 @@ if __name__ == "__main__":
     print("===================================================")
 
     best_params = study.best_params
+    best_batch_size = best_params["batch_size"]
 
     metrics_baseline = []
     metrics_finetuned = []
@@ -140,7 +138,7 @@ if __name__ == "__main__":
             learning_rate=best_params["learning_rate"],
             weight_decay=best_params["weight_decay"],
         )
-        model_base.train(target_dataset, epochs=EPOCHS_FINAL, batch_size=BATCH_SIZE, verbose=0,
+        model_base.train(target_dataset, epochs=EPOCHS_FINAL, batch_size=best_batch_size, verbose=0,
                          name=f"baseline_run{run}")
 
         val_outputs = model_base._predict_step(
@@ -164,7 +162,8 @@ if __name__ == "__main__":
             "f1_class_1": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
             "auc_roc": roc_auc_score(y_true, test_probs),
             "brier": brier_score_loss(y_true, test_probs),
-            "ece": compute_ece(y_true, test_probs)
+            "ece": compute_ece(y_true, test_probs),
+            "probs": test_probs
         })
 
         model_ft = MultiTaskMLP(
@@ -177,9 +176,9 @@ if __name__ == "__main__":
             learning_rate=best_params["learning_rate"],
             weight_decay=best_params["weight_decay"],
         )
-        model_ft.train(source_dataset, epochs=EPOCHS_PRETRAIN, batch_size=BATCH_SIZE, verbose=0,
+        model_ft.train(source_dataset, epochs=EPOCHS_PRETRAIN, batch_size=best_batch_size, verbose=0,
                        name=f"finetuned_pretrain_run{run}")
-        model_ft.train(target_dataset, epochs=EPOCHS_FINAL, batch_size=BATCH_SIZE, verbose=0,
+        model_ft.train(target_dataset, epochs=EPOCHS_FINAL, batch_size=best_batch_size, verbose=0,
                        name=f"finetuned_finetune_run{run}")
 
         val_outputs = model_ft._predict_step(
@@ -201,13 +200,22 @@ if __name__ == "__main__":
             "f1_class_1": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
             "auc_roc": roc_auc_score(y_true, test_probs),
             "brier": brier_score_loss(y_true, test_probs),
-            "ece": compute_ece(y_true, test_probs)
+            "ece": compute_ece(y_true, test_probs),
+            "probs": test_probs
         })
 
-    avg_baseline = {k: np.mean([m[k] for m in metrics_baseline])
-                    for k in metrics_baseline[0]}
-    avg_finetuned = {k: np.mean([m[k] for m in metrics_finetuned])
-                     for k in metrics_finetuned[0]}
+    avg_baseline = {
+        k: np.mean([m[k] for m in metrics_baseline])
+        for k in metrics_baseline[0]
+        if k != "probs"
+    }
+
+    avg_finetuned = {
+        k: np.mean([m[k] for m in metrics_finetuned])
+        for k in metrics_finetuned[0]
+        if k != "probs"
+    }
+
 
     print("===================================================")
     print("Resultados médios finais (10 runs):")
@@ -248,10 +256,10 @@ if __name__ == "__main__":
     tpr_ft_runs = []
     probs_base_runs = []
     probs_ft_runs = []
-    fpr_common = np.linspace(0, 1, 100)  
+    fpr_common = np.linspace(0, 1, 100)
 
     for run_idx in range(N_RUNS_FINAL):
-        probs_base = metrics_baseline[run_idx]["probs"] 
+        probs_base = metrics_baseline[run_idx]["probs"]
         probs_base_runs.append(probs_base)
         fpr_base, tpr_base, _ = roc_curve(y_true, probs_base)
         tpr_baseline_runs.append(np.interp(fpr_common, fpr_base, tpr_base))
