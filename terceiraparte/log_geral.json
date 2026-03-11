@@ -1,0 +1,42 @@
+{
+    "timestamp": "2026-02-05T13:32:04.895096",
+    "dataset": {
+        "train_size": 125,
+        "val_size": 42,
+        "test_size": 42
+    },
+    "model_config": {
+        "hidden_layers": [
+            128,
+            128,
+            128,
+            128,
+            128
+        ],
+        "dropouts": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+        ],
+        "learning_rate": 3e-05,
+        "weight_decay": 0.0,
+        "activation": "relu"
+    },
+    "training": {},
+    "calibration": {
+        "temperature": 0.9451677799224854,
+        "best_threshold": 0.8772727272727273,
+        "best_f1_val": 0.9629629629629629
+    },
+    "test_metrics": {
+        "accuracy": 0.7619047619047619,
+        "precision": 1.0,
+        "recall": 0.6428571428571429,
+        "f1_score": 0.782608695652174,
+        "auc_roc": 0.9221938848495483,
+        "brier": 0.11082204167894372,
+        "ece": 0.16661018266209532
+    }
+}
